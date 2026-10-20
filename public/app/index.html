@@ -251,9 +251,11 @@
       if(!res.ok){
         res=await fetch(API+'/storage/v1/object/'+name,{method:'POST',headers:{apikey:KEY,'Authorization':'Bearer '+KEY,'x-upsert':'true'},body:file});
       }
-      if(!res.ok){ const t=await res.text(); throw new Error(t.slice(0,80)); }
-      try{ const j=await res.json(); if(j.Key){ const k=j.Key; if(k.startsWith('photos/')) return API+'/storage/v1/object/public/'+k; return API+'/storage/v1/object/public/photos/'+k.split('/').pop(); } }catch(e){}
-      return API+'/storage/v1/object/public/photos/'+name;
+      if(res.ok){
+        try{ const j=await res.json(); if(j.Key){ const k=j.Key; if(k.indexOf('photos/')===0) return API+'/storage/v1/object/public/'+k; return API+'/storage/v1/object/public/photos/'+name; } }catch(e){}
+        return API+'/storage/v1/object/public/photos/'+name;
+      }
+      const t=await res.text(); throw new Error(t.slice(0,100));
     }
 
     const iso = (d) => d.toISOString().slice(0, 10);
