@@ -247,12 +247,17 @@
       if(!file) return null;
       const ext=(file.name.split('.').pop()||'jpg').toLowerCase().replace('jpeg','jpg');
       const name=Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8)+'.'+ext;
-      const paths=[API+'/storage/v1/object/photos/'+name, API+'/storage/v1/object/'+name, API+'/storage/v1/object/public/photos/'+name];
+      const fd=new FormData();
+      fd.append('file',file,name);
+      const paths=[
+        API+'/storage/v1/object/photos/'+name,
+        API+'/storage/v1/object/'+name
+      ];
       for(let i=0;i<paths.length;i++){
         try{
-          const res=await fetch(paths[i],{method:'POST',headers:{apikey:KEY,'Authorization':'Bearer '+KEY,'x-upsert':'true'},body:file});
+          const res=await fetch(paths[i],{method:'POST',headers:{apikey:KEY,'Authorization':'Bearer '+KEY},body:file});
           if(res.ok){
-            try{ const j=await res.json(); if(j.Key){ const k=j.Key; if(k.indexOf('photos/')===0)return API+'/storage/v1/object/public/'+k; return API+'/storage/v1/object/public/photos/'+name; } if(j.path){ const k=j.path; if(k.indexOf('photos/')===0)return API+'/storage/v1/object/public/'+k; return API+'/storage/v1/object/public/photos/'+name; } }catch(e){}
+            try{ const j=await res.json(); if(j.Key){ const k=j.Key; if(k.indexOf('photos/')===0)return API+'/storage/v1/object/public/'+k; return API+'/storage/v1/object/public/photos/'+k.split('/').pop(); } if(j.path){ const k=j.path; if(k.indexOf('photos/')===0)return API+'/storage/v1/object/public/'+k; return API+'/storage/v1/object/public/photos/'+name; } }catch(e){}
             if(paths[i].indexOf('photos/')>=0) return API+'/storage/v1/object/public/photos/'+name;
             return API+'/storage/v1/object/public/'+name;
           }
