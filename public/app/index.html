@@ -530,8 +530,7 @@
       const d = e.target.closest("[data-del]");
       if (d) { deleteEntry(d.getAttribute("data-del")); }
     });
-    const addBtn = document.getElementById("addBtn");
-    if (addBtn) addBtn.addEventListener("click", () => openSheet("breakfast"));
+    document.getElementById("addBtn").addEventListener("click", function(){ openSheet("breakfast"); }, false);
     document.getElementById("closeSheet").addEventListener("click", closeSheet);
     document.getElementById("tabProd").addEventListener("click", ()=>setTab("prod"));
     document.getElementById("tabDish").addEventListener("click", ()=>setTab("dish"));
