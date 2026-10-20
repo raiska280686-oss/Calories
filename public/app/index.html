@@ -129,6 +129,7 @@
         <div class="close" id="backToSearch">‹ Назад</div>
       </div>
       <div id="newProductForm" style="display:none">
+        <div id="npBarcode" style="color:var(--hint);font-size:13px;margin-bottom:8px"></div>
         <input id="npName" placeholder="Назва продукту" />
         <div class="row2">
           <input id="npCal" type="number" inputmode="decimal" placeholder="ккал / 100 г" />
@@ -416,6 +417,7 @@
           document.getElementById("npFat").value = "";
           document.getElementById("npCarbs").value = "";
           state.barcode = code;
+          document.getElementById("npBarcode").textContent = "Штрихкод: " + code;
           showView("newProductForm");
           toast("Немає в базі — внеси вручну");
           return;
@@ -504,7 +506,12 @@
     document.getElementById("closeSheet").addEventListener("click", closeSheet);
     document.getElementById("backToSearch").addEventListener("click", () => { stopScan(); showView("pickProduct"); });
     document.getElementById("backFromNew").addEventListener("click", () => showView("pickProduct"));
-    document.getElementById("newProduct").addEventListener("click", () => { stopScan(); showView("newProductForm"); });
+    document.getElementById("newProduct").addEventListener("click", () => {
+      state.barcode = null;
+      document.getElementById("npBarcode").textContent = "";
+      stopScan();
+      showView("newProductForm");
+    });
     document.getElementById("saveEntry").addEventListener("click", saveEntry);
     document.getElementById("saveProduct").addEventListener("click", saveProduct);
     document.getElementById("scanQrBtn").addEventListener("click", startScan);
