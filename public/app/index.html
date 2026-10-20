@@ -549,9 +549,9 @@
     }, true);
     var ab=document.getElementById("addBtn"); if(ab) ab.parentNode.removeChild(ab);
     document.getElementById("closeSheet").addEventListener("click", closeSheet);
-    document.getElementById("tabProd").addEventListener("click", ()=>setTab("prod"));
-    document.getElementById("tabDish").addEventListener("click", ()=>setTab("dish"));
-    document.getElementById("tabNewDish").addEventListener("click", ()=>setTab("newdish"));
+    document.getElementById("tabProd").addEventListener("click", ()=>{ var seg=document.getElementById('tabsSeg'); if(seg)seg.style.display='flex'; setTab("prod"); });
+    document.getElementById("tabDish").addEventListener("click", ()=>{ var seg=document.getElementById('tabsSeg'); if(seg)seg.style.display='flex'; setTab("dish"); });
+    document.getElementById("tabNewDish").addEventListener("click", ()=>{ var seg=document.getElementById('tabsSeg'); if(seg)seg.style.display='flex'; setTab("newdish"); });
     document.getElementById("backToSearch").addEventListener("click", ()=>{stopScan(); setTab("prod"); showView("viewProduct");});
     document.getElementById("backFromNew").addEventListener("click", ()=>setTab("prod"));
     document.getElementById("backToDishes").addEventListener("click", ()=>setTab("dish"));
