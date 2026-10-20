@@ -1,31 +1,39 @@
+import json
+import urllib.parse
+import urllib.request
 from typing import Optional
-
-from supabase import Client, create_client
 
 from bot.config import SUPABASE_KEY, SUPABASE_URL
 
-_client: Optional[Client] = None
-_init_failed = False
 
-
-def get_client() -> Optional[Client]:
-    global _client, _init_failed
-    if _client is not None:
-        return _client
-    if _init_failed or not SUPABASE_URL or not SUPABASE_KEY:
+def _request(method: str, path: str, body: Optional[dict] = None, prefer: str = "") -> Optional[list]:
+    if not SUPABASE_URL or not SUPABASE_KEY:
         return None
+    url = f"{SUPABASE_URL}/rest/v1/{path}"
+    headers = {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Content-Type": "application/json",
+    }
+    if prefer:
+        headers["Prefer"] = prefer
+    data = json.dumps(body).encode() if body is not None else None
+    req = urllib.request.Request(url, data=data, headers=headers, method=method)
     try:
-        _client = create_client(SUPABASE_URL, SUPABASE_KEY)
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            raw = resp.read().decode()
     except Exception:
-        _init_failed = True
         return None
-    return _client
+    if not raw:
+        return []
+    try:
+        parsed = json.loads(raw)
+    except ValueError:
+        return []
+    return parsed if isinstance(parsed, list) else [parsed]
 
 
 def save_profile(user_id: int, username: Optional[str], profile: dict) -> bool:
-    client = get_client()
-    if client is None:
-        return False
     row = {
         "user_id": user_id,
         "username": username,
@@ -37,19 +45,15 @@ def save_profile(user_id: int, username: Optional[str], profile: dict) -> bool:
         "bmr": profile["bmr"],
         "tdee": profile["tdee"],
     }
-    try:
-        client.table("profiles").upsert(row, on_conflict="user_id").execute()
-        return True
-    except Exception:
-        return False
+    result = _request(
+        "POST",
+        "profiles?on_conflict=user_id",
+        body=row,
+        prefer="resolution=merge-duplicates,return=representation",
+    )
+    return result is not None
 
 
 def get_profile(user_id: int) -> Optional[dict]:
-    client = get_client()
-    if client is None:
-        return None
-    try:
-        res = client.table("profiles").select("*").eq("user_id", user_id).limit(1).execute()
-    except Exception:
-        return None
-    return res.data[0] if res.data else None
+    rows = _request("GET", f"profiles?user_id=eq.{user_id}&select=*&limit=1")
+    return rows[0] if rows else None
