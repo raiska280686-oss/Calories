@@ -11,7 +11,7 @@ def main_menu() -> ReplyKeyboardMarkup:
             [
                 KeyboardButton(
                     text="Відкрити щоденник",
-                    web_app=WebAppInfo(url=f"{WEBHOOK_BASE_URL}/app/"),
+                    web_app=WebAppInfo(url=f"{WEBHOOK_BASE_URL}/app"),
                 )
             ],
         )
