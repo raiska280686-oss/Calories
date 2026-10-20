@@ -245,10 +245,10 @@
     }
     async function uploadPhoto(file){
       if(!file) return null;
-      const ext=(file.name.split('.').pop()||'jpg').toLowerCase();
+      const ext=(file.name.split('.').pop()||'jpg').toLowerCase().replace('jpeg','jpg');
       const name=Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8)+'.'+ext;
-      const res=await fetch(API+'/storage/v1/object/photos/'+name,{method:'POST',headers:{apikey:KEY,'Authorization':'Bearer '+KEY,'cache-control':'max-age=0'},body:file});
-      if(!res.ok) throw new Error('upload failed');
+      const res=await fetch(API+'/storage/v1/object/photos/'+name,{method:'POST',headers:{apikey:KEY,'Authorization':'Bearer '+KEY},body:file});
+      if(!res.ok){ const t=await res.text(); throw new Error(t.slice(0,80)); }
       return API+'/storage/v1/object/public/photos/'+name;
     }
 
