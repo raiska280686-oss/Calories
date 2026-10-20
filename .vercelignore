@@ -1,0 +1,4 @@
+supabase/
+*.apk
+.env
+bot.log
