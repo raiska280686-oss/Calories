@@ -105,7 +105,12 @@
       <div id="pickProduct">
         <input id="search" placeholder="Пошук продукту..." autocomplete="off" />
         <div class="row2" style="margin-bottom:10px">
-          <button class="primary" style="position:static;border-radius:10px;padding:12px" id="scanBtn">📷 Сканувати</button>
+          <button class="primary" style="position:static;border-radius:10px;padding:12px" id="scanQrBtn">📷 QR</button>
+          <button class="primary" style="position:static;border-radius:10px;padding:12px" id="barcodeBtn">🔢 Код</button>
+        </div>
+        <div id="barcodeBox" style="display:none;margin-bottom:10px">
+          <input id="barcodeInput" type="text" inputmode="numeric" placeholder="Введи штрихкод (цифри)" />
+          <button class="primary" style="position:static;border-radius:10px;padding:12px" id="lookupBtn">Знайти</button>
         </div>
         <div class="results" id="results"></div>
         <div class="close" id="newProduct">+ Новий продукт</div>
@@ -399,15 +404,27 @@
       toast(found.name);
     }
 
-    function scanBarcode() {
+    function scanQr() {
       if (!tg) return toast("Сканування доступне лише в Telegram");
       if (!tg.showScanQrPopup) return toast("Онови Telegram");
-      tg.showScanQrPopup({ text: "Наведи на штрихкод" }, (text) => {
+      tg.showScanQrPopup({ text: "Наведи на QR-код" }, (text) => {
         if (!text) return;
         tg.closeScanQrPopup();
-        onBarcode(text);
+        onBarcode(text.replace(/\D/g, ""));
         return true;
       });
+    }
+
+    function toggleBarcodeBox() {
+      const box = document.getElementById("barcodeBox");
+      box.style.display = box.style.display === "none" ? "block" : "none";
+      if (box.style.display === "block") document.getElementById("barcodeInput").focus();
+    }
+
+    function lookupFromInput() {
+      const code = document.getElementById("barcodeInput").value.replace(/\D/g, "");
+      if (!code) return toast("Введи цифри штрихкоду");
+      onBarcode(code);
     }
 
     // ---- Events ----
@@ -418,7 +435,9 @@
     document.getElementById("newProduct").addEventListener("click", () => showView("newProductForm"));
     document.getElementById("saveEntry").addEventListener("click", saveEntry);
     document.getElementById("saveProduct").addEventListener("click", saveProduct);
-    document.getElementById("scanBtn").addEventListener("click", scanBarcode);
+    document.getElementById("scanQrBtn").addEventListener("click", scanQr);
+    document.getElementById("barcodeBtn").addEventListener("click", toggleBarcodeBox);
+    document.getElementById("lookupBtn").addEventListener("click", lookupFromInput);
     document.getElementById("grams").addEventListener("input", updatePreview);
     let timer;
     document.getElementById("search").addEventListener("input", (e) => {
