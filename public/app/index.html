@@ -110,10 +110,16 @@
   <div id="meals"></div>
 
   <div style="position:fixed;left:0;right:0;bottom:0;background:var(--bg);padding:8px 10px;display:flex;gap:8px;z-index:6;border-top:1px solid rgba(128,128,128,.15)">
-    <button style="flex:1;padding:12px;border-radius:10px;border:none;background:var(--card);color:var(--text)" onclick="try{document.getElementById('sheet').classList.add('open');document.getElementById('sheetTitle').textContent='Додати';setTab('prod');loadProducts('');}catch(e){}">+ Продукт</button>
-    <button style="flex:1;padding:12px;border-radius:10px;border:none;background:var(--card);color:var(--text)" onclick="try{document.getElementById('sheet').classList.add('open');document.getElementById('sheetTitle').textContent='Нова страва';setTab('newdish');state.dishItems=[];renderDishItems();}catch(e){}">+ Страва</button>
+    <button style="flex:1;padding:12px;border-radius:10px;border:none;background:var(--card);color:var(--text)" onclick="try{document.getElementById('addMenu').style.display='flex';}catch(e){}">+ Додати</button>
     <button style="flex:1;padding:12px;border-radius:10px;border:none;background:var(--card);color:var(--text)" onclick="try{document.getElementById('sheet').classList.add('open');document.getElementById('sheetTitle').textContent='Мої продукти';setTab('prod');loadProducts('');}catch(e){}">Продукти</button>
     <button style="flex:1;padding:12px;border-radius:10px;border:none;background:var(--card);color:var(--text)" onclick="try{document.getElementById('sheet').classList.add('open');document.getElementById('sheetTitle').textContent='Мої страви';setTab('dish');loadDishes('');}catch(e){}">Страви</button>
+  </div>
+  <div id="addMenu" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);align-items:flex-end;z-index:10" onclick="this.style.display='none'">
+    <div class="menu-list" style="width:100%;background:var(--bg);border-radius:18px 18px 0 0;padding:14px;gap:10px" onclick="event.stopPropagation()">
+      <button onclick="document.getElementById('addMenu').style.display='none';document.getElementById('sheet').classList.add('open');document.getElementById('sheetTitle').textContent='Додати продукт';setTab('prod');loadProducts('');">Додати продукт</button>
+      <button onclick="document.getElementById('addMenu').style.display='none';document.getElementById('sheet').classList.add('open');document.getElementById('sheetTitle').textContent='Нова страва';setTab('newdish');state.dishItems=[];renderDishItems();">Додати страву</button>
+      <button style="text-align:center" onclick="document.getElementById('addMenu').style.display='none'">Скасувати</button>
+    </div>
   </div>
 
   <div class="sheet" id="sheet">
