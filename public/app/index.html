@@ -42,7 +42,7 @@
     button.primary {
       width: 100%; padding: 14px; border: none; border-radius: 12px;
       background: var(--btn); color: var(--btn-text); font-size: 16px; font-weight: 600;
-      position: fixed; left: 0; right: 0; bottom: 0; border-radius: 0;
+      position: fixed; left: 0; right: 0; bottom: 0; border-radius: 0; z-index: 5;
     }
     .sheet { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; z-index: 10; }
     .sheet.open { display: block; }
@@ -433,13 +433,18 @@
     (async () => {
       const u = tg?.initDataUnsafe?.user;
       userId = u?.id || new URLSearchParams(location.search).get("user_id");
+      console.log("Telegram:", !!tg, "user:", u, "userId:", userId);
       if (!userId) {
-        document.getElementById("addBtn").disabled = true;
         toast("Відкрий через Telegram-бота");
         return;
       }
-      await loadProfile();
-      await loadDay();
+      try {
+        await loadProfile();
+        await loadDay();
+      } catch (e) {
+        console.error(e);
+        toast("Помилка завантаження");
+      }
     })();
   </script>
 </body>
