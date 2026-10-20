@@ -7,5 +7,6 @@
   },
   "rewrites": [
     { "source": "/webhook", "destination": "/api/webhook" }
-  ]
+  ],
+  "cleanUrls": true
 }

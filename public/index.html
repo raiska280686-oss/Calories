@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>Калорії</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    :root {
+      --bg: var(--tg-theme-bg-color, #ffffff);
+      --text: var(--tg-theme-text-color, #1a1a1a);
+      --hint: var(--tg-theme-hint-color, #8a8a8a);
+      --btn: var(--tg-theme-button-color, #2ea6ff);
+      --btn-text: var(--tg-theme-button-text-color, #ffffff);
+      --card: var(--tg-theme-secondary-bg-color, #f2f2f7);
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body {
+      margin: 0; padding: 0 12px 90px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg); color: var(--text);
+    }
+    h1 { font-size: 20px; margin: 14px 0 6px; }
+    h2 { font-size: 15px; margin: 18px 0 8px; color: var(--hint); font-weight: 600; }
+    .summary {
+      background: var(--card); border-radius: 14px; padding: 14px; margin-top: 8px;
+    }
+    .kcal-row { display: flex; justify-content: space-between; font-size: 14px; font-weight: 600; }
+    .bar { height: 10px; border-radius: 6px; background: rgba(128,128,128,.25); margin-top: 10px; overflow: hidden; }
+    .bar > i { display: block; height: 100%; width: 0; background: var(--btn); transition: width .3s; }
+    .macros { display: flex; gap: 8px; margin-top: 12px; }
+    .macro { flex: 1; text-align: center; background: var(--bg); border-radius: 10px; padding: 8px 4px; }
+    .macro b { display: block; font-size: 14px; }
+    .macro span { font-size: 11px; color: var(--hint); }
+    .meal { background: var(--card); border-radius: 14px; padding: 12px 14px; margin-bottom: 10px; }
+    .meal-head { display: flex; justify-content: space-between; align-items: center; font-weight: 600; font-size: 14px; }
+    .meal-head span.kcal { color: var(--hint); font-weight: 500; }
+    .entry { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-top: 1px solid rgba(128,128,128,.15); font-size: 14px; }
+    .entry:first-of-type { border-top: none; }
+    .entry .muted { color: var(--hint); font-size: 12px; }
+    .add { color: var(--btn); font-size: 13px; font-weight: 600; padding: 6px 0 0; }
+    button.primary {
+      width: 100%; padding: 14px; border: none; border-radius: 12px;
+      background: var(--btn); color: var(--btn-text); font-size: 16px; font-weight: 600;
+      position: fixed; left: 0; right: 0; bottom: 0; border-radius: 0;
+    }
+    .sheet { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; z-index: 10; }
+    .sheet.open { display: block; }
+    .sheet-body {
+      position: absolute; left: 0; right: 0; bottom: 0; max-height: 88vh; overflow-y: auto;
+      background: var(--bg); border-radius: 18px 18px 0 0; padding: 16px 16px 24px;
+    }
+    .sheet-body h3 { margin: 0 0 12px; font-size: 17px; }
+    input, select {
+      width: 100%; padding: 12px; border-radius: 10px; border: 1px solid rgba(128,128,128,.3);
+      background: var(--bg); color: var(--text); font-size: 16px; margin-bottom: 10px;
+    }
+    .results { max-height: 46vh; overflow-y: auto; }
+    .result { padding: 11px 4px; border-bottom: 1px solid rgba(128,128,128,.15); cursor: pointer; }
+    .result small { color: var(--hint); }
+    .row2 { display: flex; gap: 8px; }
+    .row2 > * { flex: 1; }
+    .close { text-align: center; color: var(--hint); padding: 12px; font-size: 14px; }
+    .toast {
+      position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+      background: #333; color: #fff; padding: 10px 18px; border-radius: 20px;
+      font-size: 14px; opacity: 0; transition: opacity .25s; pointer-events: none; z-index: 20;
+    }
+    .toast.show { opacity: .95; }
+    .tabbar { display: flex; gap: 6px; margin-top: 10px; }
+    .tabbar button {
+      flex: 1; padding: 10px; border: none; border-radius: 10px; font-size: 14px;
+      background: var(--card); color: var(--text); font-weight: 600;
+    }
+    .tabbar button.active { background: var(--btn); color: var(--btn-text); }
+  </style>
+</head>
+<body>
+  <h1>Щоденник</h1>
+  <div class="tabbar">
+    <button id="prevDay">‹</button>
+    <button id="todayBtn" class="active">Сьогодні</button>
+    <button id="nextDay">›</button>
+  </div>
+
+  <div class="summary">
+    <div class="kcal-row"><span id="eaten">0 ккал</span><span id="norm">Норма: —</span></div>
+    <div class="bar"><i id="progress"></i></div>
+    <div class="macros">
+      <div class="macro"><b id="pVal">0</b><span>Білки</span></div>
+      <div class="macro"><b id="fVal">0</b><span>Жири</span></div>
+      <div class="macro"><b id="cVal">0</b><span>Вуглеводи</span></div>
+      <div class="macro"><b id="leftVal">0</b><span>Залишок</span></div>
+    </div>
+  </div>
+
+  <h2 id="dateLabel"></h2>
+  <div id="meals"></div>
+
+  <button class="primary" id="addBtn">+ Додати страву</button>
+
+  <div class="sheet" id="sheet">
+    <div class="sheet-body">
+      <h3 id="sheetTitle">Додати страву</h3>
+      <div id="pickProduct">
+        <input id="search" placeholder="Пошук продукту..." autocomplete="off" />
+        <div class="results" id="results"></div>
+        <div class="close" id="newProduct">+ Новий продукт</div>
+      </div>
+      <div id="pickAmount" style="display:none">
+        <div id="amountName" style="font-weight:600;margin-bottom:4px"></div>
+        <small id="amountHint" style="color:var(--hint)"></small>
+        <input id="grams" type="number" inputmode="decimal" placeholder="Грами" style="margin-top:10px" />
+        <div class="results" id="preview" style="padding:4px 0;color:var(--hint);font-size:14px"></div>
+        <button class="primary" style="position:static;border-radius:12px;margin-top:6px" id="saveEntry">Зберегти</button>
+        <div class="close" id="backToSearch">‹ Назад</div>
+      </div>
+      <div id="newProductForm" style="display:none">
+        <input id="npName" placeholder="Назва продукту" />
+        <div class="row2">
+          <input id="npCal" type="number" inputmode="decimal" placeholder="ккал / 100 г" />
+          <input id="npProtein" type="number" inputmode="decimal" placeholder="Білки" />
+        </div>
+        <div class="row2">
+          <input id="npFat" type="number" inputmode="decimal" placeholder="Жири" />
+          <input id="npCarbs" type="number" inputmode="decimal" placeholder="Вуглеводи" />
+        </div>
+        <button class="primary" style="position:static;border-radius:12px;margin-top:6px" id="saveProduct">Зберегти продукт</button>
+        <div class="close" id="backFromNew">‹ Назад</div>
+      </div>
+      <div class="close" id="closeSheet">Закрити</div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const API = "https://mtwqibjdfcuxqmbigksf.supabase.co";
+    const KEY = "sb_publishable_V3Jv0gycxZ3oEEu-bWYrMg_SE_ERS7m";
+    const MEALS = [
+      { id: "breakfast", label: "Сніданок" },
+      { id: "lunch", label: "Обід" },
+      { id: "dinner", label: "Вечеря" },
+      { id: "snack", label: "Перекус" },
+    ];
+    let userId = null;
+    let norm = null;
+    let day = new Date();
+    let state = { product: null, meal: "breakfast" };
+
+    const tg = window.Telegram?.WebApp;
+    if (tg) { tg.ready(); tg.expand(); }
+
+    function api(path, opts = {}) {
+      return fetch(API + "/rest/v1/" + path, {
+        ...opts,
+        headers: {
+          apikey: KEY,
+          Authorization: "Bearer " + KEY,
+          "Content-Type": "application/json",
+          Prefer: opts.prefer || "return=representation",
+          ...(opts.headers || {}),
+        },
+      }).then(async (r) => {
+        if (!r.ok) throw new Error(await r.text());
+        const text = await r.text();
+        return text ? JSON.parse(text) : null;
+      });
+    }
+
+    const iso = (d) => d.toISOString().slice(0, 10);
+    const r0 = (n) => Math.round(n);
+
+    function toast(msg) {
+      const t = document.getElementById("toast");
+      t.textContent = msg; t.classList.add("show");
+      setTimeout(() => t.classList.remove("show"), 1800);
+    }
+
+    async function loadProfile() {
+      const rows = await api(`profiles?user_id=eq.${userId}&select=tdee`);
+      norm = rows.length ? rows[0].tdee : null;
+      document.getElementById("norm").textContent = norm ? `Норма: ${r0(norm)} ккал` : "Норма: —";
+    }
+
+    async function loadDay() {
+      document.getElementById("dateLabel").textContent = day.toLocaleDateString("uk-UA", {
+        day: "numeric", month: "long", weekday: "short",
+      });
+      const entries = await api(
+        `diary_entries?user_id=eq.${userId}&entry_date=eq.${iso(day)}&select=*&order=created_at.asc`
+      );
+      render(entries);
+    }
+
+    function render(entries) {
+      let kcal = 0, protein = 0, fat = 0, carbs = 0;
+      const byMeal = {};
+      MEALS.forEach((m) => (byMeal[m.id] = []));
+      entries.forEach((e) => {
+        kcal += e.calories; protein += e.protein; fat += e.fat; carbs += e.carbs;
+        (byMeal[e.meal] ||= []).push(e);
+      });
+
+      document.getElementById("eaten").textContent = `${r0(kcal)} ккал`;
+      document.getElementById("pVal").textContent = `${r0(protein)} г`;
+      document.getElementById("fVal").textContent = `${r0(fat)} г`;
+      document.getElementById("cVal").textContent = `${r0(carbs)} г`;
+      document.getElementById("leftVal").textContent = norm ? `${r0(norm - kcal)} ккал` : "—";
+      document.getElementById("progress").style.width =
+        norm ? Math.min(100, (kcal / norm) * 100) + "%" : "0%";
+
+      const wrap = document.getElementById("meals");
+      wrap.innerHTML = "";
+      MEALS.forEach((m) => {
+        const list = byMeal[m.id];
+        const sum = list.reduce((s, e) => s + e.calories, 0);
+        const div = document.createElement("div");
+        div.className = "meal";
+        div.innerHTML = `
+          <div class="meal-head"><span>${m.label}</span><span class="kcal">${r0(sum)} ккал</span></div>
+          ${list.map((e) => `
+            <div class="entry">
+              <div>
+                <div>${e.name}</div>
+                <div class="muted">${r0(e.grams)} г · Б${r0(e.protein)} Ж${r0(e.fat)} В${r0(e.carbs)}</div>
+              </div>
+              <div>
+                <b>${r0(e.calories)}</b>
+                <button data-del="${e.id}" style="border:none;background:none;color:#e35;font-size:16px;padding:0 0 0 10px">✕</button>
+              </div>
+            </div>`).join("")}
+          <div class="add" data-meal="${m.id}">+ додати</div>
+        `;
+        wrap.appendChild(div);
+      });
+
+      wrap.querySelectorAll("[data-meal]").forEach((el) =>
+        el.addEventListener("click", () => openSheet(el.dataset.meal))
+      );
+      wrap.querySelectorAll("[data-del]").forEach((el) =>
+        el.addEventListener("click", () => deleteEntry(el.dataset.del))
+      );
+    }
+
+    async function deleteEntry(id) {
+      await api(`diary_entries?id=eq.${id}`, { method: "DELETE" });
+      loadDay();
+      toast("Видалено");
+    }
+
+    // ---- Sheet ----
+    const sheet = document.getElementById("sheet");
+    function showView(v) {
+      for (const id of ["pickProduct", "pickAmount", "newProductForm"])
+        document.getElementById(id).style.display = id === v ? "block" : "none";
+    }
+
+    function openSheet(meal) {
+      state.meal = meal;
+      document.getElementById("sheetTitle").textContent =
+        "Додати в " + (MEALS.find((m) => m.id === meal)?.label || "");
+      showView("pickProduct");
+      sheet.classList.add("open");
+      document.getElementById("search").value = "";
+      loadProducts("");
+    }
+
+    function closeSheet() {
+      sheet.classList.remove("open");
+      if (tg) tg.BackButton.hide();
+    }
+
+    async function loadProducts(q) {
+      const query = q.trim()
+        ? `products?or=(user_id.is.null,user_id.eq.${userId})&name=ilike.*${encodeURIComponent(q.trim())}*&select=*&limit=40`
+        : `products?or=(user_id.is.null,user_id.eq.${userId})&select=*&limit=40&order=name.asc`;
+      const rows = await api(query);
+      const box = document.getElementById("results");
+      box.innerHTML = rows.map((p) => `
+        <div class="result" data-id="${p.id}">
+          <div>${p.name}</div>
+          <small>${r0(p.calories)} ккал · Б${p.protein} Ж${p.fat} В${p.carbs} /100 г</small>
+        </div>`).join("") || `<div class="close">Нічого не знайдено</div>`;
+      box.querySelectorAll("[data-id]").forEach((el) =>
+        el.addEventListener("click", () => pickProduct(rows.find((p) => p.id == el.dataset.id)))
+      );
+    }
+
+    function pickProduct(p) {
+      state.product = p;
+      document.getElementById("amountName").textContent = p.name;
+      document.getElementById("amountHint").textContent =
+        `${r0(p.calories)} ккал / 100 г · Б${p.protein} Ж${p.fat} В${p.carbs}`;
+      document.getElementById("grams").value = 100;
+      updatePreview();
+      showView("pickAmount");
+    }
+
+    function updatePreview() {
+      const p = state.product;
+      if (!p) return;
+      const g = parseFloat(document.getElementById("grams").value.replace(",", ".")) || 0;
+      const k = (p.calories * g) / 100;
+      document.getElementById("preview").textContent =
+        `${r0(k)} ккал · Б${r0(p.protein * g / 100)} Ж${r0(p.fat * g / 100)} В${r0(p.carbs * g / 100)}`;
+    }
+
+    async function saveEntry() {
+      const p = state.product;
+      const g = parseFloat(document.getElementById("grams").value.replace(",", "."));
+      if (!p || !(g > 0)) return toast("Вкажи грами");
+      await api("diary_entries", {
+        method: "POST",
+        body: JSON.stringify({
+          user_id: userId, entry_date: iso(day), meal: state.meal,
+          product_id: p.id, name: p.name, grams: g,
+          calories: (p.calories * g) / 100, protein: (p.protein * g) / 100,
+          fat: (p.fat * g) / 100, carbs: (p.carbs * g) / 100,
+        }),
+      });
+      closeSheet();
+      loadDay();
+      toast("Додано");
+    }
+
+    async function saveProduct() {
+      const name = document.getElementById("npName").value.trim();
+      const cal = parseFloat(document.getElementById("npCal").value.replace(",", "."));
+      if (!name || !(cal >= 0)) return toast("Заповни назву і калорії");
+      const rows = await api("products", {
+        method: "POST",
+        body: JSON.stringify({
+          user_id: userId, name, calories: cal,
+          protein: parseFloat(document.getElementById("npProtein").value.replace(",", ".")) || 0,
+          fat: parseFloat(document.getElementById("npFat").value.replace(",", ".")) || 0,
+          carbs: parseFloat(document.getElementById("npCarbs").value.replace(",", ".")) || 0,
+        }),
+      });
+      toast("Продукт збережено");
+      document.getElementById("npName").value = "";
+      document.getElementById("npCal").value = "";
+      document.getElementById("npProtein").value = "";
+      document.getElementById("npFat").value = "";
+      document.getElementById("npCarbs").value = "";
+      pickProduct(rows[0]);
+    }
+
+    // ---- Events ----
+    document.getElementById("addBtn").addEventListener("click", () => openSheet("breakfast"));
+    document.getElementById("closeSheet").addEventListener("click", closeSheet);
+    document.getElementById("backToSearch").addEventListener("click", () => showView("pickProduct"));
+    document.getElementById("backFromNew").addEventListener("click", () => showView("pickProduct"));
+    document.getElementById("newProduct").addEventListener("click", () => showView("newProductForm"));
+    document.getElementById("saveEntry").addEventListener("click", saveEntry);
+    document.getElementById("saveProduct").addEventListener("click", saveProduct);
+    document.getElementById("grams").addEventListener("input", updatePreview);
+    let timer;
+    document.getElementById("search").addEventListener("input", (e) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => loadProducts(e.target.value), 250);
+    });
+    document.getElementById("prevDay").addEventListener("click", () => { day.setDate(day.getDate() - 1); loadDay(); });
+    document.getElementById("nextDay").addEventListener("click", () => { day.setDate(day.getDate() + 1); loadDay(); });
+    document.getElementById("todayBtn").addEventListener("click", () => { day = new Date(); loadDay(); });
+
+    // ---- Boot ----
+    (async () => {
+      const u = tg?.initDataUnsafe?.user;
+      userId = u?.id || new URLSearchParams(location.search).get("user_id");
+      if (!userId) {
+        document.getElementById("addBtn").disabled = true;
+        toast("Відкрий через Telegram-бота");
+        return;
+      }
+      await loadProfile();
+      await loadDay();
+    })();
+  </script>
+</body>
+</html>
