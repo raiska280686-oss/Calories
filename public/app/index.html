@@ -382,6 +382,7 @@
           carbs: d.carbs || 0,
         };
       } catch (e) {
+        alert("LOOKUP ERROR: " + e.name + " " + e.message + "\ncode=" + code);
         return null;
       } finally {
         clearTimeout(timer);
@@ -390,42 +391,46 @@
 
     async function onBarcode(code) {
       toast("Шукаю продукт...");
-      const found = await lookupBarcode(code);
+      try {
+        const found = await lookupBarcode(code);
 
-      const existing = await api(
-        `products?user_id=eq.${userId}&brand=eq.${encodeURIComponent(code)}&select=*&limit=1`
-      );
-      if (existing.length) {
+        const existing = await api(
+          `products?user_id=eq.${userId}&brand=eq.${encodeURIComponent(code)}&select=*&limit=1`
+        );
+        if (existing.length) {
+          showView("pickProduct");
+          pickProduct(existing[0]);
+          toast(existing[0].name);
+          return;
+        }
+
+        if (!found) {
+          document.getElementById("npName").value = "";
+          document.getElementById("npCal").value = "";
+          document.getElementById("npProtein").value = "";
+          document.getElementById("npFat").value = "";
+          document.getElementById("npCarbs").value = "";
+          state.barcode = code;
+          showView("newProductForm");
+          toast("Немає в базі — внеси вручну");
+          return;
+        }
+
+        const rows = await api("products", {
+          method: "POST",
+          body: JSON.stringify({
+            user_id: userId, name: found.name, calories: found.calories || 0,
+            protein: found.protein, fat: found.fat, carbs: found.carbs,
+            brand: code,
+          }),
+        });
+        const product = rows[0];
         showView("pickProduct");
-        pickProduct(existing[0]);
-        toast(existing[0].name);
-        return;
+        pickProduct(product);
+        toast(found.name);
+      } catch (e) {
+        alert("ONBARCODE ERROR: " + e.message);
       }
-
-      if (!found) {
-        document.getElementById("npName").value = "";
-        document.getElementById("npCal").value = "";
-        document.getElementById("npProtein").value = "";
-        document.getElementById("npFat").value = "";
-        document.getElementById("npCarbs").value = "";
-        state.barcode = code;
-        showView("newProductForm");
-        toast("Немає в базі — внеси вручну");
-        return;
-      }
-
-      const rows = await api("products", {
-        method: "POST",
-        body: JSON.stringify({
-          user_id: userId, name: found.name, calories: found.calories || 0,
-          protein: found.protein, fat: found.fat, carbs: found.carbs,
-          brand: code,
-        }),
-      });
-      const product = rows[0];
-      showView("pickProduct");
-      pickProduct(product);
-      toast(found.name);
     }
 
     let html5Qr = null;
@@ -439,13 +444,25 @@
         return;
       }
       try {
-        html5Qr = new Html5Qrcode("reader");
+        html5Qr = new Html5Qrcode("reader", { formatsToSupport: [
+          Html5QrcodeSupportedFormats.EAN_13,
+          Html5QrcodeSupportedFormats.EAN_8,
+          Html5QrcodeSupportedFormats.UPC_A,
+          Html5QrcodeSupportedFormats.UPC_E,
+          Html5QrcodeSupportedFormats.CODE_128,
+        ]});
         await html5Qr.start(
           { facingMode: "environment" },
-          { fps: 10, qrbox: { width: 260, height: 160 } },
+          { fps: 10, qrbox: { width: 280, height: 160 } },
           async (decodedText) => {
+            const code = String(decodedText).replace(/\D/g, "");
             await stopScan();
-            onBarcode(String(decodedText).replace(/\D/g, ""));
+            if (code.length < 6) {
+              toast("Код не розпізнано: " + decodedText);
+              return;
+            }
+            toast("Код: " + code);
+            onBarcode(code);
           },
           () => {}
         );
