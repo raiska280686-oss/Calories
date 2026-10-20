@@ -22,4 +22,4 @@ async def cmd_start(message: Message) -> None:
             "Обери дію в меню нижче."
         )
 
-    await message.answer(text, reply_markup=main_menu())
+    await message.answer(text, reply_markup=main_menu(message.from_user.id))

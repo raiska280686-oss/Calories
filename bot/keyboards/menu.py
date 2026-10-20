@@ -1,19 +1,19 @@
+from typing import Optional
+
 from aiogram.types import KeyboardButton, ReplyKeyboardMarkup, WebAppInfo
 
 from bot.config import WEBHOOK_BASE_URL
 
 
-def main_menu() -> ReplyKeyboardMarkup:
+def main_menu(user_id: Optional[int] = None) -> ReplyKeyboardMarkup:
     rows = [[KeyboardButton(text="Профіль"), KeyboardButton(text="Статистика")]]
     if WEBHOOK_BASE_URL:
+        url = f"{WEBHOOK_BASE_URL}/app"
+        if user_id:
+            url += f"?user_id={user_id}"
         rows.insert(
             0,
-            [
-                KeyboardButton(
-                    text="Відкрити щоденник",
-                    web_app=WebAppInfo(url=f"{WEBHOOK_BASE_URL}/app"),
-                )
-            ],
+            [KeyboardButton(text="Відкрити щоденник", web_app=WebAppInfo(url=url))],
         )
     else:
         rows.insert(

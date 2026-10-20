@@ -145,5 +145,5 @@ async def profile_activity(message: Message, state: FSMContext) -> None:
         + ".\n\n"
         f"BMR: {norm['bmr']:.0f} ккал\n"
         f"Добова норма: {norm['tdee']:.0f} ккал",
-        reply_markup=main_menu(),
+        reply_markup=main_menu(message.from_user.id),
     )
