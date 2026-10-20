@@ -525,12 +525,13 @@
 
     // Events
     document.getElementById("meals").addEventListener("click", (e) => {
-      const m = e.target.closest("[data-meal]");
-      if (m) { openSheet(m.dataset.meal); return; }
+      const m = e.target.closest(".add[data-meal]");
+      if (m) { openSheet(m.getAttribute("data-meal")); return; }
       const d = e.target.closest("[data-del]");
-      if (d) { deleteEntry(d.dataset.del); }
+      if (d) { deleteEntry(d.getAttribute("data-del")); }
     });
-    document.getElementById("addBtn").addEventListener("click", () => openSheet("breakfast"));
+    const addBtn = document.getElementById("addBtn");
+    if (addBtn) addBtn.addEventListener("click", () => openSheet("breakfast"));
     document.getElementById("closeSheet").addEventListener("click", closeSheet);
     document.getElementById("tabProd").addEventListener("click", ()=>setTab("prod"));
     document.getElementById("tabDish").addEventListener("click", ()=>setTab("dish"));
