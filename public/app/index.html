@@ -365,25 +365,26 @@
     }
 
     async function lookupBarcode(code) {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 15000);
       try {
         const r = await fetch(
-          `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json`
+          `https://calories-raisa8.vercel.app/off?code=${encodeURIComponent(code)}`,
+          { signal: ctrl.signal }
         );
         const d = await r.json();
-        if (d.status !== 1 || !d.product) return null;
-        const n = d.product.nutriments || {};
-        const name = d.product.product_name_uk || d.product.product_name ||
-          d.product.generic_name || `Продукт ${code}`;
+        if (!d || !d.found) return null;
         return {
-          barcode: code,
-          name: `${name}${d.product.brands ? " (" + d.product.brands + ")" : ""}`,
-          calories: n["energy-kcal_100g"] ?? (n["energy_100g"] ? n["energy_100g"] / 4.184 : 0),
-          protein: n.proteins_100g || 0,
-          fat: n.fat_100g || 0,
-          carbs: n.carbohydrates_100g || 0,
+          name: d.name,
+          calories: d.calories || 0,
+          protein: d.protein || 0,
+          fat: d.fat || 0,
+          carbs: d.carbs || 0,
         };
       } catch (e) {
         return null;
+      } finally {
+        clearTimeout(timer);
       }
     }
 
