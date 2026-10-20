@@ -323,7 +323,7 @@
       document.getElementById("tabNewDish").classList.toggle("active", t === "newdish");
       showView(t === "prod" ? "viewProduct" : t === "dish" ? "viewDish" : t === "newdish" ? "viewNewDish" : "viewProduct");
       var seg = document.getElementById("tabsSeg");
-      if(opts.hideTabs){ seg.style.display='none'; } else { seg.style.display='flex'; }
+      if(opts.hideTabs){ if(seg)seg.style.display='none'; } else { if(seg)seg.style.display='flex'; }
       if (t === "dish") loadDishes();
       if (t === "newdish") { state.dishItems = []; renderDishItems(); }
     }
