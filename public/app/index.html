@@ -343,7 +343,9 @@
     window.openSheet = function(meal) {
       state.meal = meal;
       document.getElementById("sheetTitle").textContent = "Додати в " + (MEALS.find((m) => m.id === meal)?.label || "");
-      setTab("prod");
+      var seg=document.getElementById('tabsSeg'); if(seg)seg.style.display='flex';
+      document.getElementById("tabProd").classList.add("active"); document.getElementById("tabDish").classList.remove("active"); document.getElementById("tabNewDish").classList.remove("active");
+      for(var i=0;i<['viewProduct','viewDish','viewNewDish','pickAmount','pickDishPortion','newProductForm'].length;i++){var idv=['viewProduct','viewDish','viewNewDish','pickAmount','pickDishPortion','newProductForm'][i];document.getElementById(idv).style.display=idv==='viewProduct'?'block':'none';}
       var sheet = document.getElementById("sheet");
       sheet.classList.add("open");
       document.getElementById("search").value = "";
@@ -602,12 +604,17 @@
 
     // Events
     document.getElementById("meals").addEventListener("click", function(e){
-      var m = e.target.closest ? e.target.closest(".add[data-meal]") : null;
-      if (!m && e.target.classList && e.target.classList.contains('add')) m = e.target;
-      if (m && m.getAttribute && m.getAttribute('data-meal')) { openSheet(m.getAttribute('data-meal')); return; }
-      var d = e.target.closest ? e.target.closest("[data-del]") : null;
-      if (!d && e.target.getAttribute && e.target.getAttribute('data-del')) d = e.target;
-      if (d && d.getAttribute) { deleteEntry(d.getAttribute('data-del')); }
+      var el = e.target;
+      while(el && el !== document.getElementById('meals')){
+        if(el.classList && el.classList.contains('add') && el.getAttribute && el.getAttribute('data-meal')){
+          try{ if(window.openSheet) window.openSheet(el.getAttribute('data-meal')); else openSheet(el.getAttribute('data-meal')); }catch(ex){}
+          e.preventDefault(); e.stopPropagation(); return;
+        }
+        if(el.getAttribute && el.getAttribute('data-del')){
+          deleteEntry(el.getAttribute('data-del')); e.preventDefault(); e.stopPropagation(); return;
+        }
+        el = el.parentNode;
+      }
     }, true);
     var ab=document.getElementById("addBtn"); if(ab) ab.parentNode.removeChild(ab);
     document.getElementById("closeSheet").addEventListener("click", closeSheet);
