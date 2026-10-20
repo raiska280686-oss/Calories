@@ -385,7 +385,7 @@
       document.getElementById("npCarbs").value = p.carbs ?? "";
       state.editProductId = p.id;
       var npf=document.getElementById("npPhoto"); if(npf) npf.value="";
-      var pv=document.getElementById("npPhotoPreview"); if(pv){ pv.style.display = p.image_url?'block':'none'; pv.style.backgroundImage = p.image_url?'url('+p.image_url+')':'none'; }
+      var pv=document.getElementById("npPhotoPreview"); if(pv){ pv.style.display = p.image_url ? 'block' : 'none'; if(p.image_url){ pv.style.backgroundImage = 'url(' + p.image_url + ')'; pv.style.backgroundSize='cover'; pv.style.backgroundPosition='center'; } else { pv.style.backgroundImage='none'; } }
       var seg=document.getElementById('tabsSeg'); if(seg)seg.style.display='none';
       document.getElementById("tabProd").classList.add("active"); document.getElementById("tabDish").classList.remove("active"); document.getElementById("tabNewDish").classList.remove("active");
       for(var i=0;i<['viewProduct','viewDish','viewNewDish','pickAmount','pickDishPortion','newProductForm'].length;i++){var idv=['viewProduct','viewDish','viewNewDish','pickAmount','pickDishPortion','newProductForm'][i];document.getElementById(idv).style.display=idv==='newProductForm'?'block':'none';}
@@ -440,7 +440,7 @@
       document.getElementById('dishName').value = d.name || '';
       state.editDishId = d.id;
       var dpf=document.getElementById("dishPhoto"); if(dpf) dpf.value="";
-      var dpv=document.getElementById("dishPhotoPreview"); if(dpv){ dpv.style.display = d.image_url?'block':'none'; dpv.style.backgroundImage = d.image_url?'url('+d.image_url+')':'none'; }
+      var dpv=document.getElementById("dishPhotoPreview"); if(dpv){ dpv.style.display = d.image_url ? 'block' : 'none'; if(d.image_url){ dpv.style.backgroundImage = 'url(' + d.image_url + ')'; dpv.style.backgroundSize='cover'; dpv.style.backgroundPosition='center'; } else { dpv.style.backgroundImage='none'; } }
       renderDishItems();
       var seg=document.getElementById('tabsSeg'); if(seg)seg.style.display='none';
       document.getElementById("tabNewDish").classList.add("active"); document.getElementById("tabProd").classList.remove("active"); document.getElementById("tabDish").classList.remove("active");
