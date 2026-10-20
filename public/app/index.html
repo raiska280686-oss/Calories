@@ -111,13 +111,13 @@
 
   <div style="position:fixed;left:0;right:0;bottom:0;background:var(--bg);padding:8px 10px;display:flex;gap:8px;z-index:6;border-top:1px solid rgba(128,128,128,.15)">
     <button style="flex:1;padding:12px;border-radius:10px;border:none;background:var(--card);color:var(--text)" onclick="try{document.getElementById('addMenu').style.display='flex';}catch(e){}">+ Додати</button>
-    <button style="flex:1;padding:12px;border-radius:10px;border:none;background:var(--card);color:var(--text)" onclick="try{document.getElementById('sheet').classList.add('open');document.getElementById('sheetTitle').textContent='Мої продукти';setTab('prod');loadProducts('');}catch(e){}">Продукти</button>
-    <button style="flex:1;padding:12px;border-radius:10px;border:none;background:var(--card);color:var(--text)" onclick="try{document.getElementById('sheet').classList.add('open');document.getElementById('sheetTitle').textContent='Мої страви';setTab('dish');loadDishes('');}catch(e){}">Страви</button>
+    <button style="flex:1;padding:12px;border-radius:10px;border:none;background:var(--card);color:var(--text)" onclick="try{document.getElementById('sheet').classList.add('open');document.getElementById('sheetTitle').textContent='Мої продукти';var seg=document.getElementById('tabsSeg');if(seg)seg.style.display='none';document.getElementById('tabProd').classList.add('active');document.getElementById('tabDish').classList.remove('active');document.getElementById('tabNewDish').classList.remove('active');for(var i=0;i&lt;['viewProduct','viewDish','viewNewDish','pickAmount','pickDishPortion','newProductForm'].length;i++){var id=['viewProduct','viewDish','viewNewDish','pickAmount','pickDishPortion','newProductForm'][i];document.getElementById(id).style.display=id==='viewProduct'?'block':'none';}loadProducts('');}catch(e){}">Продукти</button>
+    <button style="flex:1;padding:12px;border-radius:10px;border:none;background:var(--card);color:var(--text)" onclick="try{document.getElementById('sheet').classList.add('open');document.getElementById('sheetTitle').textContent='Мої страви';var seg=document.getElementById('tabsSeg');if(seg)seg.style.display='none';document.getElementById('tabDish').classList.add('active');document.getElementById('tabProd').classList.remove('active');document.getElementById('tabNewDish').classList.remove('active');for(var i=0;i&lt;['viewProduct','viewDish','viewNewDish','pickAmount','pickDishPortion','newProductForm'].length;i++){var id=['viewProduct','viewDish','viewNewDish','pickAmount','pickDishPortion','newProductForm'][i];document.getElementById(id).style.display=id==='viewDish'?'block':'none';}loadDishes('');}catch(e){}">Страви</button>
   </div>
   <div id="addMenu" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);align-items:flex-end;z-index:10" onclick="this.style.display='none'">
     <div class="menu-list" style="width:100%;background:var(--bg);border-radius:18px 18px 0 0;padding:14px;gap:10px" onclick="event.stopPropagation()">
-      <button onclick="document.getElementById('addMenu').style.display='none';document.getElementById('sheet').classList.add('open');document.getElementById('sheetTitle').textContent='Додати продукт';setTab('prod');loadProducts('');">Додати продукт</button>
-      <button onclick="document.getElementById('addMenu').style.display='none';document.getElementById('sheet').classList.add('open');document.getElementById('sheetTitle').textContent='Нова страва';setTab('newdish');state.dishItems=[];renderDishItems();">Додати страву</button>
+      <button onclick="document.getElementById('addMenu').style.display='none';document.getElementById('sheet').classList.add('open');document.getElementById('sheetTitle').textContent='Додати продукт';var seg=document.getElementById('tabsSeg');if(seg)seg.style.display='none';document.getElementById('tabProd').classList.add('active');document.getElementById('tabDish').classList.remove('active');document.getElementById('tabNewDish').classList.remove('active');for(var i=0;i&lt;['viewProduct','viewDish','viewNewDish','pickAmount','pickDishPortion','newProductForm'].length;i++){var id=['viewProduct','viewDish','viewNewDish','pickAmount','pickDishPortion','newProductForm'][i];document.getElementById(id).style.display=id==='viewProduct'?'block':'none';}loadProducts('');">Додати продукт</button>
+      <button onclick="document.getElementById('addMenu').style.display='none';document.getElementById('sheet').classList.add('open');document.getElementById('sheetTitle').textContent='Додати страву';var seg=document.getElementById('tabsSeg');if(seg)seg.style.display='none';document.getElementById('tabNewDish').classList.add('active');document.getElementById('tabProd').classList.remove('active');document.getElementById('tabDish').classList.remove('active');for(var i=0;i&lt;['viewProduct','viewDish','viewNewDish','pickAmount','pickDishPortion','newProductForm'].length;i++){var id=['viewProduct','viewDish','viewNewDish','pickAmount','pickDishPortion','newProductForm'][i];document.getElementById(id).style.display=id==='viewNewDish'?'block':'none';}state.dishItems=[];renderDishItems();">Додати страву</button>
       <button style="text-align:center" onclick="document.getElementById('addMenu').style.display='none'">Скасувати</button>
     </div>
   </div>
@@ -125,7 +125,7 @@
   <div class="sheet" id="sheet">
     <div class="sheet-body">
       <h3 id="sheetTitle">Додати</h3>
-      <div class="seg">
+      <div class="seg" id="tabsSeg">
         <button id="tabProd" class="active">Продукт</button>
         <button id="tabDish">Страва</button>
         <button id="tabNewDish">Нова страва</button>
@@ -317,11 +317,13 @@
       if (v !== "viewProduct") stopScan();
     }
 
-    function setTab(t) {
+    function setTab(t, opts={}) {
       document.getElementById("tabProd").classList.toggle("active", t === "prod");
       document.getElementById("tabDish").classList.toggle("active", t === "dish");
       document.getElementById("tabNewDish").classList.toggle("active", t === "newdish");
       showView(t === "prod" ? "viewProduct" : t === "dish" ? "viewDish" : t === "newdish" ? "viewNewDish" : "viewProduct");
+      var seg = document.getElementById("tabsSeg");
+      if(opts.hideTabs){ seg.style.display='none'; } else { seg.style.display='flex'; }
       if (t === "dish") loadDishes();
       if (t === "newdish") { state.dishItems = []; renderDishItems(); }
     }
