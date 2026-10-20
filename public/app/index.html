@@ -291,9 +291,6 @@
         `;
         wrap.appendChild(div);
       });
-
-      wrap.querySelectorAll("[data-meal]").forEach((el) => el.addEventListener("click", () => openSheet(el.dataset.meal)));
-      wrap.querySelectorAll("[data-del]").forEach((el) => el.addEventListener("click", () => deleteEntry(el.dataset.del)));
     }
 
     async function deleteEntry(id) {
@@ -527,6 +524,12 @@
     function lookupFromInput(){ const code=document.getElementById("barcodeInput").value.replace(/\D/g,""); if(!code)return toast("Введи цифри"); onBarcode(code); }
 
     // Events
+    document.getElementById("meals").addEventListener("click", (e) => {
+      const m = e.target.closest("[data-meal]");
+      if (m) { openSheet(m.dataset.meal); return; }
+      const d = e.target.closest("[data-del]");
+      if (d) { deleteEntry(d.dataset.del); }
+    });
     document.getElementById("addBtn").addEventListener("click", () => openSheet("breakfast"));
     document.getElementById("closeSheet").addEventListener("click", closeSheet);
     document.getElementById("tabProd").addEventListener("click", ()=>setTab("prod"));
