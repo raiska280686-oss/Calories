@@ -46,6 +46,9 @@
       position: fixed; left: 0; right: 0; bottom: 0; border-radius: 0; z-index: 5;
     }
     .sheet { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; z-index: 10; }
+    .menu-list{display:flex;flex-direction:column;gap:8px}
+    .menu-list button{width:100%;text-align:left;border:none;border-radius:12px;padding:12px 14px;background:rgba(255,255,255,.04);color:var(--text)}
+    .menu-list .danger{color:#ff7b7b}
     .sheet.open { display: block; }
     .sheet-body {
       position: absolute; left: 0; right: 0; bottom: 0; max-height: 92vh; overflow-y: auto;
@@ -301,7 +304,7 @@
 
     const sheet = document.getElementById("sheet");
     function showView(v) {
-      for (const id of ["viewProduct", "viewDish", "viewNewDish", "pickAmount", "pickDishPortion", "newProductForm"])
+      for (const id of ["viewProduct", "viewDish", "viewNewDish", "pickAmount", "pickDishPortion", "newProductForm", "prodMenu", "dishMenu"])
         document.getElementById(id).style.display = id === v ? "block" : "none";
       if (v !== "viewProduct") stopScan();
     }
