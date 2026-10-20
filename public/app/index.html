@@ -89,7 +89,7 @@
 </head>
 <body>
   <h1>Щоденник</h1>
-  <div class="tabbar">
+  <div class="tabbar" style="margin-bottom:70px">
     <button id="prevDay">‹</button>
     <button id="todayBtn" class="active">Сьогодні</button>
     <button id="nextDay">›</button>
@@ -109,7 +109,11 @@
   <h2 id="dateLabel"></h2>
   <div id="meals"></div>
 
-  <button class="primary" id="addBtn" onclick="try{window.openSheet&&window.openSheet('breakfast');}catch(e){}">+ Додати</button>
+  <div style="position:fixed;left:0;right:0;bottom:0;background:var(--bg);padding:8px 10px;display:flex;gap:8px;z-index:6;border-top:1px solid rgba(128,128,128,.15)">
+    <button style="flex:1;padding:12px;border-radius:10px;border:none;background:var(--card);color:var(--text)" onclick="try{if(window.openSheet)window.openSheet('breakfast');}catch(e){}">+ Додати</button>
+    <button style="flex:1;padding:12px;border-radius:10px;border:none;background:var(--card);color:var(--text)" onclick="try{document.getElementById('sheet').classList.add('open');document.getElementById('sheetTitle').textContent='Продукти';setTab('prod');loadProducts('');}catch(e){}">Продукти</button>
+    <button style="flex:1;padding:12px;border-radius:10px;border:none;background:var(--card);color:var(--text)" onclick="try{document.getElementById('sheet').classList.add('open');document.getElementById('sheetTitle').textContent='Страви';setTab('dish');loadDishes('');}catch(e){}">Страви</button>
+  </div>
 
   <div class="sheet" id="sheet">
     <div class="sheet-body">
@@ -534,7 +538,7 @@
       if (!d && e.target.getAttribute && e.target.getAttribute('data-del')) d = e.target;
       if (d && d.getAttribute) { deleteEntry(d.getAttribute('data-del')); }
     }, true);
-    document.getElementById("addBtn").addEventListener("click", function(e){ e.preventDefault(); openSheet("breakfast"); }, false);
+    var ab=document.getElementById("addBtn"); if(ab) ab.parentNode.removeChild(ab);
     document.getElementById("closeSheet").addEventListener("click", closeSheet);
     document.getElementById("tabProd").addEventListener("click", ()=>setTab("prod"));
     document.getElementById("tabDish").addEventListener("click", ()=>setTab("dish"));
