@@ -250,12 +250,15 @@
       let res=await fetch(API+'/storage/v1/object/photos/'+name,{method:'POST',headers:{apikey:KEY,'Authorization':'Bearer '+KEY,'x-upsert':'true'},body:file});
       if(!res.ok){
         res=await fetch(API+'/storage/v1/object/'+name,{method:'POST',headers:{apikey:KEY,'Authorization':'Bearer '+KEY,'x-upsert':'true'},body:file});
-      }
-      if(res.ok){
-        try{ const j=await res.json(); if(j.Key){ const k=j.Key; if(k.indexOf('photos/')===0) return API+'/storage/v1/object/public/'+k; return API+'/storage/v1/object/public/photos/'+name; } }catch(e){}
+        if(res.ok){
+          try{ const j=await res.json(); if(j.path) return API+'/storage/v1/object/public/'+j.path; if(j.Key) return API+'/storage/v1/object/public/'+j.Key; }catch(e){}
+          return API+'/storage/v1/object/public/'+name;
+        }
+      }else{
+        try{ const j=await res.json(); if(j.path) return API+'/storage/v1/object/public/'+j.path; if(j.Key) return API+'/storage/v1/object/public/'+j.Key; }catch(e){}
         return API+'/storage/v1/object/public/photos/'+name;
       }
-      const t=await res.text(); throw new Error(t.slice(0,100));
+      const t=await res.text(); throw new Error(t.slice(0,120));
     }
 
     const iso = (d) => d.toISOString().slice(0, 10);
