@@ -549,8 +549,11 @@
       const rows = await api("products", { method:"POST", body: JSON.stringify({ user_id: uid, name, calories: cal, protein: parseFloat(document.getElementById("npProtein").value.replace(",", "."))||0, fat: parseFloat(document.getElementById("npFat").value.replace(",", "."))||0, carbs: parseFloat(document.getElementById("npCarbs").value.replace(",", "."))||0, brand: state.barcode||null, image_url: img })});
       toast("Продукт збережено"); state.barcode=null; document.getElementById("npBarcode").textContent="";
       document.getElementById("npName").value=""; document.getElementById("npCal").value=""; document.getElementById("npProtein").value=""; document.getElementById("npFat").value=""; document.getElementById("npCarbs").value="";
-      document.getElementById("npPhoto").value=""; var pv=document.getElementById("npPhotoPreview"); pv.style.display='none'; pv.style.backgroundImage='none';
-      setTab("prod"); pickProduct(rows[0]);
+      var npf=document.getElementById("npPhoto"); if(npf) npf.value=""; var pv=document.getElementById("npPhotoPreview"); if(pv){ pv.style.display='none'; pv.style.backgroundImage='none'; }
+      var seg2=document.getElementById('tabsSeg'); if(seg2)seg2.style.display='flex';
+      document.getElementById("tabProd").classList.add("active"); document.getElementById("tabDish").classList.remove("active"); document.getElementById("tabNewDish").classList.remove("active");
+      for(var i=0;i<['viewProduct','viewDish','viewNewDish','pickAmount','pickDishPortion','newProductForm'].length;i++){var idv=['viewProduct','viewDish','viewNewDish','pickAmount','pickDishPortion','newProductForm'][i];document.getElementById(idv).style.display=idv==='viewProduct'?'block':'none';}
+      loadProducts(''); pickProduct(rows[0]);
     }
 
     function toggleBarcodeBox(){ const box=document.getElementById("barcodeBox"); box.style.display = box.style.display==="none"?"block":"none"; if(box.style.display==="block") document.getElementById("barcodeInput").focus(); }
