@@ -160,7 +160,7 @@
       <div id="viewNewDish" style="display:none">
         <input id="dishName" placeholder="Назва страви (напр. Борщ)" />
         <input type="file" id="dishPhoto" accept="image/*" />
-        <div id="dishPhotoPreview" style="width:100%;height:140px;border-radius:12px;background:rgba(255,255,255,.04);background-size:cover;background-position:center;display:none"></div>
+        <div id="dishPhotoPreview" style="width:100%;height:160px;border-radius:12px;overflow:hidden;background:rgba(255,255,255,.04);display:none"></div>
         <input id="dishIngSearch" placeholder="Додати продукт до страви..." autocomplete="off" />
         <div class="results" id="dishIngResults" style="max-height:30vh"></div>
         <h2>Інгредієнти</h2>
@@ -191,7 +191,7 @@
         <div id="npBarcode" style="color:var(--hint);font-size:13px;margin-bottom:8px"></div>
         <input id="npName" placeholder="Назва продукту" />
         <input type="file" id="npPhoto" accept="image/*" />
-        <div id="npPhotoPreview" style="width:100%;height:140px;border-radius:12px;background:rgba(255,255,255,.04);background-size:cover;background-position:center;display:none"></div>
+        <div id="npPhotoPreview" style="width:100%;height:160px;border-radius:12px;overflow:hidden;background:rgba(255,255,255,.04);display:none"></div>
         <div class="row2">
           <input id="npCal" type="number" inputmode="decimal" placeholder="ккал / 100 г" />
           <input id="npProtein" type="number" inputmode="decimal" placeholder="Білки" />
@@ -385,7 +385,7 @@
       document.getElementById("npCarbs").value = p.carbs ?? "";
       state.editProductId = p.id;
       var npf=document.getElementById("npPhoto"); if(npf) npf.value="";
-      var pv=document.getElementById("npPhotoPreview"); if(pv){ pv.style.display = p.image_url ? 'block' : 'none'; if(p.image_url){ pv.style.backgroundImage = 'url(' + p.image_url + '?t=' + Date.now() + ')'; pv.style.backgroundSize='cover'; pv.style.backgroundPosition='center'; pv.style.backgroundRepeat='no-repeat'; } else { pv.style.backgroundImage='none'; } }
+      var pv=document.getElementById("npPhotoPreview"); if(pv){ pv.innerHTML=''; if(p.image_url){ pv.style.display='block'; var img=document.createElement('img'); img.src=p.image_url+'?t='+Date.now(); img.style.width='100%'; img.style.height='100%'; img.style.objectFit='cover'; pv.appendChild(img); } else { pv.style.display='none'; } }
       var seg=document.getElementById('tabsSeg'); if(seg)seg.style.display='none';
       document.getElementById("tabProd").classList.add("active"); document.getElementById("tabDish").classList.remove("active"); document.getElementById("tabNewDish").classList.remove("active");
       for(var i=0;i<['viewProduct','viewDish','viewNewDish','pickAmount','pickDishPortion','newProductForm'].length;i++){var idv=['viewProduct','viewDish','viewNewDish','pickAmount','pickDishPortion','newProductForm'][i];document.getElementById(idv).style.display=idv==='newProductForm'?'block':'none';}
@@ -440,7 +440,7 @@
       document.getElementById('dishName').value = d.name || '';
       state.editDishId = d.id;
       var dpf=document.getElementById("dishPhoto"); if(dpf) dpf.value="";
-      var dpv=document.getElementById("dishPhotoPreview"); if(dpv){ dpv.style.display = d.image_url ? 'block' : 'none'; if(d.image_url){ dpv.style.backgroundImage = 'url(' + d.image_url + '?t=' + Date.now() + ')'; dpv.style.backgroundSize='cover'; dpv.style.backgroundPosition='center'; dpv.style.backgroundRepeat='no-repeat'; } else { dpv.style.backgroundImage='none'; } }
+      var dpv=document.getElementById("dishPhotoPreview"); if(dpv){ dpv.innerHTML=''; if(d.image_url){ dpv.style.display='block'; var img=document.createElement('img'); img.src=d.image_url+'?t='+Date.now(); img.style.width='100%'; img.style.height='100%'; img.style.objectFit='cover'; dpv.appendChild(img); } else { dpv.style.display='none'; } }
       renderDishItems();
       var seg=document.getElementById('tabsSeg'); if(seg)seg.style.display='none';
       document.getElementById("tabNewDish").classList.add("active"); document.getElementById("tabProd").classList.remove("active"); document.getElementById("tabDish").classList.remove("active");
@@ -519,7 +519,7 @@
       await api("dish_items", { method:"POST", body: JSON.stringify(state.dishItems.map((it)=>({ dish_id: d.id, name: it.name, grams: it.grams, calories: (Number(it.calories)*it.grams)/100, protein: (Number(it.protein)*it.grams)/100, fat: (Number(it.fat)*it.grams)/100, carbs: (Number(it.carbs)*it.grams)/100 }))) });
       toast(state.editDishId?"Страву оновлено":"Страву збережено");
       document.getElementById("dishName").value="";
-      var dpf=document.getElementById("dishPhoto"); if(dpf) dpf.value=""; var dpv=document.getElementById("dishPhotoPreview"); if(dpv){ dpv.style.display='none'; dpv.style.backgroundImage='none'; }
+      var dpf=document.getElementById("dishPhoto"); if(dpf) dpf.value=""; var dpv=document.getElementById("dishPhotoPreview"); if(dpv){ dpv.style.display='none'; dpv.innerHTML=''; }
       state.dishItems=[]; delete state.editDishId; renderDishItems();
       var seg2=document.getElementById('tabsSeg'); if(seg2)seg2.style.display='flex';
       document.getElementById("tabDish").classList.add("active"); document.getElementById("tabProd").classList.remove("active"); document.getElementById("tabNewDish").classList.remove("active");
@@ -592,7 +592,7 @@
       else { rows = await api("products", { method:"POST", body: JSON.stringify(body) }); }
       toast(state.editProductId?"Продукт оновлено":"Продукт збережено"); state.barcode=null; delete state.editProductId; document.getElementById("npBarcode").textContent="";
       document.getElementById("npName").value=""; document.getElementById("npCal").value=""; document.getElementById("npProtein").value=""; document.getElementById("npFat").value=""; document.getElementById("npCarbs").value="";
-      var npf=document.getElementById("npPhoto"); if(npf) npf.value=""; var pv=document.getElementById("npPhotoPreview"); if(pv){ pv.style.display='none'; pv.style.backgroundImage='none'; }
+      var npf=document.getElementById("npPhoto"); if(npf) npf.value=""; var pv=document.getElementById("npPhotoPreview"); if(pv){ pv.style.display='none'; pv.innerHTML=''; }
       var seg2=document.getElementById('tabsSeg'); if(seg2)seg2.style.display='flex';
       document.getElementById("tabProd").classList.add("active"); document.getElementById("tabDish").classList.remove("active"); document.getElementById("tabNewDish").classList.remove("active");
       for(var i=0;i<['viewProduct','viewDish','viewNewDish','pickAmount','pickDishPortion','newProductForm'].length;i++){var idv=['viewProduct','viewDish','viewNewDish','pickAmount','pickDishPortion','newProductForm'][i];document.getElementById(idv).style.display=idv==='viewProduct'?'block':'none';}
@@ -624,7 +624,7 @@
     document.getElementById("backToSearch").addEventListener("click", ()=>{stopScan(); setTab("prod"); showView("viewProduct");});
     document.getElementById("backFromNew").addEventListener("click", ()=>setTab("prod"));
     document.getElementById("backToDishes").addEventListener("click", ()=>setTab("dish"));
-    document.getElementById("newProduct").addEventListener("click", ()=>{ state.barcode=null; delete state.editProductId; document.getElementById("npBarcode").textContent=""; document.getElementById("npName").value=""; document.getElementById("npCal").value=""; document.getElementById("npProtein").value=""; document.getElementById("npFat").value=""; document.getElementById("npCarbs").value=""; var npf=document.getElementById("npPhoto"); if(npf) npf.value=""; var pv=document.getElementById("npPhotoPreview"); if(pv){ pv.style.display='none'; pv.style.backgroundImage='none'; } if(typeof stopScan==='function') try{stopScan();}catch(e){} var seg=document.getElementById('tabsSeg'); if(seg)seg.style.display='none'; document.getElementById("tabProd").classList.add("active"); document.getElementById("tabDish").classList.remove("active"); document.getElementById("tabNewDish").classList.remove("active"); for(var i=0;i<['viewProduct','viewDish','viewNewDish','pickAmount','pickDishPortion','newProductForm'].length;i++){var idv=['viewProduct','viewDish','viewNewDish','pickAmount','pickDishPortion','newProductForm'][i];document.getElementById(idv).style.display=idv==='newProductForm'?'block':'none';} });
+    document.getElementById("newProduct").addEventListener("click", ()=>{ state.barcode=null; delete state.editProductId; document.getElementById("npBarcode").textContent=""; document.getElementById("npName").value=""; document.getElementById("npCal").value=""; document.getElementById("npProtein").value=""; document.getElementById("npFat").value=""; document.getElementById("npCarbs").value=""; var npf=document.getElementById("npPhoto"); if(npf) npf.value=""; var pv=document.getElementById("npPhotoPreview"); if(pv){ pv.style.display='none'; pv.innerHTML=''; } if(typeof stopScan==='function') try{stopScan();}catch(e){} var seg=document.getElementById('tabsSeg'); if(seg)seg.style.display='none'; document.getElementById("tabProd").classList.add("active"); document.getElementById("tabDish").classList.remove("active"); document.getElementById("tabNewDish").classList.remove("active"); for(var i=0;i<['viewProduct','viewDish','viewNewDish','pickAmount','pickDishPortion','newProductForm'].length;i++){var idv=['viewProduct','viewDish','viewNewDish','pickAmount','pickDishPortion','newProductForm'][i];document.getElementById(idv).style.display=idv==='newProductForm'?'block':'none';} });
     document.getElementById("saveEntry").addEventListener("click", saveEntry);
     document.getElementById("saveDishEntry").addEventListener("click", saveDishEntry);
     document.getElementById("saveProduct").addEventListener("click", saveProduct);
@@ -635,8 +635,8 @@
     document.getElementById("lookupBtn").addEventListener("click", lookupFromInput);
     document.getElementById("grams").addEventListener("input", updatePreview);
     document.getElementById("dishPortionGrams").addEventListener("input", updateDishPortion);
-    document.getElementById("npPhoto").addEventListener("change", function(e){ var f=e.target.files[0]; if(!f)return; var pv=document.getElementById("npPhotoPreview"); pv.style.display='block'; pv.style.backgroundImage='url('+URL.createObjectURL(f)+')'; pv.style.backgroundSize='cover'; pv.style.backgroundPosition='center'; });
-    document.getElementById("dishPhoto").addEventListener("change", function(e){ var f=e.target.files[0]; if(!f)return; var pv=document.getElementById("dishPhotoPreview"); pv.style.display='block'; pv.style.backgroundImage='url('+URL.createObjectURL(f)+')'; pv.style.backgroundSize='cover'; pv.style.backgroundPosition='center'; });
+    document.getElementById("npPhoto").addEventListener("change", function(e){ var f=e.target.files[0]; if(!f)return; var pv=document.getElementById("npPhotoPreview"); pv.innerHTML=''; var img=document.createElement('img'); img.src=URL.createObjectURL(f); img.style.width='100%'; img.style.height='100%'; img.style.objectFit='cover'; pv.appendChild(img); pv.style.display='block'; });
+    document.getElementById("dishPhoto").addEventListener("change", function(e){ var f=e.target.files[0]; if(!f)return; var pv=document.getElementById("dishPhotoPreview"); pv.innerHTML=''; var img=document.createElement('img'); img.src=URL.createObjectURL(f); img.style.width='100%'; img.style.height='100%'; img.style.objectFit='cover'; pv.appendChild(img); pv.style.display='block'; });
     let timer1,timer2,timer3;
     document.getElementById("search").addEventListener("input", (e)=>{ clearTimeout(timer1); timer1=setTimeout(()=>loadProducts(e.target.value),250); });
     document.getElementById("dishSearch").addEventListener("input", (e)=>{ clearTimeout(timer2); timer2=setTimeout(()=>loadDishes(e.target.value),250); });
