@@ -555,7 +555,7 @@
     document.getElementById("backToSearch").addEventListener("click", ()=>{stopScan(); setTab("prod"); showView("viewProduct");});
     document.getElementById("backFromNew").addEventListener("click", ()=>setTab("prod"));
     document.getElementById("backToDishes").addEventListener("click", ()=>setTab("dish"));
-    document.getElementById("newProduct").addEventListener("click", ()=>{ state.barcode=null; document.getElementById("npBarcode").textContent=""; stopScan(); setTab("prod"); showView("newProductForm"); });
+    document.getElementById("newProduct").addEventListener("click", ()=>{ state.barcode=null; document.getElementById("npBarcode").textContent=""; if(typeof stopScan==='function') stopScan(); setTab("prod"); showView("newProductForm"); });
     document.getElementById("saveEntry").addEventListener("click", saveEntry);
     document.getElementById("saveDishEntry").addEventListener("click", saveDishEntry);
     document.getElementById("saveProduct").addEventListener("click", saveProduct);
