@@ -159,6 +159,8 @@
       <!-- Нова страва -->
       <div id="viewNewDish" style="display:none">
         <input id="dishName" placeholder="Назва страви (напр. Борщ)" />
+        <input type="file" id="dishPhoto" accept="image/*" />
+        <div id="dishPhotoPreview" style="width:100%;height:140px;border-radius:12px;background:rgba(255,255,255,.04);background-size:cover;background-position:center;display:none"></div>
         <input id="dishIngSearch" placeholder="Додати продукт до страви..." autocomplete="off" />
         <div class="results" id="dishIngResults" style="max-height:30vh"></div>
         <h2>Інгредієнти</h2>
@@ -188,6 +190,8 @@
       <div id="newProductForm" style="display:none">
         <div id="npBarcode" style="color:var(--hint);font-size:13px;margin-bottom:8px"></div>
         <input id="npName" placeholder="Назва продукту" />
+        <input type="file" id="npPhoto" accept="image/*" />
+        <div id="npPhotoPreview" style="width:100%;height:140px;border-radius:12px;background:rgba(255,255,255,.04);background-size:cover;background-position:center;display:none"></div>
         <div class="row2">
           <input id="npCal" type="number" inputmode="decimal" placeholder="ккал / 100 г" />
           <input id="npProtein" type="number" inputmode="decimal" placeholder="Білки" />
@@ -218,7 +222,7 @@
     let userId = null;
     let norm = null;
     let day = new Date();
-    let state = { product: null, meal: "breakfast", dish: null, dishItems: [], dishPortion: null };
+    let state = { product: null, meal: "breakfast", dish: null, dishItems: [], dishPortion: null, npPhoto: null, dishPhoto: null };
 
     const tg = window.Telegram?.WebApp;
     if (tg) { tg.ready(); tg.expand(); }
@@ -238,6 +242,14 @@
         const text = await r.text();
         return text ? JSON.parse(text) : null;
       });
+    }
+    async function uploadPhoto(file){
+      if(!file) return null;
+      const ext=(file.name.split('.').pop()||'jpg').toLowerCase();
+      const name=Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8)+'.'+ext;
+      const res=await fetch(API+'/storage/v1/object/photos/'+name,{method:'POST',headers:{apikey:KEY,'Authorization':'Bearer '+KEY},body:file});
+      if(!res.ok) throw new Error('upload failed');
+      return API+'/storage/v1/object/public/photos/'+name;
     }
 
     const iso = (d) => d.toISOString().slice(0, 10);
@@ -465,11 +477,13 @@
       const uid = Number(userId);
       let tg=0,tp=0,tf=0,tc=0,tt=0;
       state.dishItems.forEach((it)=>{ const g=it.grams||0; const c=Number(it.calories)||0,pr=Number(it.protein)||0,ft=Number(it.fat)||0,cb=Number(it.carbs)||0; tg+=(c*g/100); tp+=(pr*g/100); tf+=(ft*g/100); tc+=(cb*g/100); tt+=g; });
-      const dish = await api("dishes", { method:"POST", body: JSON.stringify({ user_id: uid, name, total_grams: tt, calories: tg, protein: tp, fat: tf, carbs: tc }) });
+      let img=null; const f=document.getElementById("dishPhoto").files[0]; if(f){ try{ img=await uploadPhoto(f); }catch(e){ toast("Помилка завантаження фото"); } }
+      const dish = await api("dishes", { method:"POST", body: JSON.stringify({ user_id: uid, name, total_grams: tt, calories: tg, protein: tp, fat: tf, carbs: tc, image_url: img }) });
       const d = dish[0];
       await api("dish_items", { method:"POST", body: JSON.stringify(state.dishItems.map((it)=>({ dish_id: d.id, name: it.name, grams: it.grams, calories: (Number(it.calories)*it.grams)/100, protein: (Number(it.protein)*it.grams)/100, fat: (Number(it.fat)*it.grams)/100, carbs: (Number(it.carbs)*it.grams)/100 }))) });
       toast("Страву збережено");
       document.getElementById("dishName").value="";
+      document.getElementById("dishPhoto").value=""; var dpv=document.getElementById("dishPhotoPreview"); dpv.style.display='none'; dpv.style.backgroundImage='none';
       state.dishItems=[]; renderDishItems();
       setTab("dish"); loadDishes();
     }
@@ -529,9 +543,13 @@
       const cal = parseFloat(document.getElementById("npCal").value.replace(",", "."));
       if (!name || !(cal>=0)) return toast("Заповни назву і калорії");
       const uid = Number(userId);
-      const rows = await api("products", { method:"POST", body: JSON.stringify({ user_id: uid, name, calories: cal, protein: parseFloat(document.getElementById("npProtein").value.replace(",", "."))||0, fat: parseFloat(document.getElementById("npFat").value.replace(",", "."))||0, carbs: parseFloat(document.getElementById("npCarbs").value.replace(",", "."))||0, brand: state.barcode||null })});
+      let img = null;
+      const f = document.getElementById("npPhoto").files[0];
+      if(f){ try{ img = await uploadPhoto(f); }catch(e){ toast("Помилка завантаження фото"); } }
+      const rows = await api("products", { method:"POST", body: JSON.stringify({ user_id: uid, name, calories: cal, protein: parseFloat(document.getElementById("npProtein").value.replace(",", "."))||0, fat: parseFloat(document.getElementById("npFat").value.replace(",", "."))||0, carbs: parseFloat(document.getElementById("npCarbs").value.replace(",", "."))||0, brand: state.barcode||null, image_url: img })});
       toast("Продукт збережено"); state.barcode=null; document.getElementById("npBarcode").textContent="";
       document.getElementById("npName").value=""; document.getElementById("npCal").value=""; document.getElementById("npProtein").value=""; document.getElementById("npFat").value=""; document.getElementById("npCarbs").value="";
+      document.getElementById("npPhoto").value=""; var pv=document.getElementById("npPhotoPreview"); pv.style.display='none'; pv.style.backgroundImage='none';
       setTab("prod"); pickProduct(rows[0]);
     }
 
@@ -566,6 +584,8 @@
     document.getElementById("lookupBtn").addEventListener("click", lookupFromInput);
     document.getElementById("grams").addEventListener("input", updatePreview);
     document.getElementById("dishPortionGrams").addEventListener("input", updateDishPortion);
+    document.getElementById("npPhoto").addEventListener("change", function(e){ var f=e.target.files[0]; if(!f)return; var pv=document.getElementById("npPhotoPreview"); pv.style.display='block'; pv.style.backgroundImage='url('+URL.createObjectURL(f)+')'; });
+    document.getElementById("dishPhoto").addEventListener("change", function(e){ var f=e.target.files[0]; if(!f)return; var pv=document.getElementById("dishPhotoPreview"); pv.style.display='block'; pv.style.backgroundImage='url('+URL.createObjectURL(f)+')'; });
     let timer1,timer2,timer3;
     document.getElementById("search").addEventListener("input", (e)=>{ clearTimeout(timer1); timer1=setTimeout(()=>loadProducts(e.target.value),250); });
     document.getElementById("dishSearch").addEventListener("input", (e)=>{ clearTimeout(timer2); timer2=setTimeout(()=>loadDishes(e.target.value),250); });
