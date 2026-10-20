@@ -109,7 +109,7 @@
   <h2 id="dateLabel"></h2>
   <div id="meals"></div>
 
-  <button class="primary" id="addBtn">+ Додати</button>
+  <button class="primary" id="addBtn" onclick="try{window.openSheet&&window.openSheet('breakfast');}catch(e){}">+ Додати</button>
 
   <div class="sheet" id="sheet">
     <div class="sheet-body">
@@ -315,16 +315,18 @@
       if (t === "newdish") { state.dishItems = []; renderDishItems(); }
     }
 
-    function openSheet(meal) {
+    window.openSheet = function(meal) {
       state.meal = meal;
       document.getElementById("sheetTitle").textContent = "Додати в " + (MEALS.find((m) => m.id === meal)?.label || "");
       setTab("prod");
+      var sheet = document.getElementById("sheet");
       sheet.classList.add("open");
       document.getElementById("search").value = "";
       document.getElementById("dishSearch").value = "";
       document.getElementById("dishIngSearch").value = "";
       loadProducts("");
     }
+    function openSheet(meal) { return window.openSheet(meal); }
 
     function closeSheet() {
       sheet.classList.remove("open");
