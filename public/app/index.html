@@ -514,7 +514,7 @@
       const body={ user_id: uid, name, total_grams: tt, calories: tg, protein: tp, fat: tf, carbs: tc };
       if(img) body.image_url = img;
       let d;
-      if(state.editDishId){ await api("dishes?id=eq."+state.editDishId,{ method:"PATCH", body: JSON.stringify(body) }); await api('dish_items?dish_id=eq.'+state.editDishId,{method:'DELETE'}); d={id:state.editDishId}; }
+      if(state.editDishId){ await api("dishes?id=eq."+state.editDishId,{ method:"PATCH", body: JSON.stringify(body), headers:{Prefer:'return=representation'} }); await api('dish_items?dish_id=eq.'+state.editDishId,{method:'DELETE'}); d={id:state.editDishId}; }
       else { const dish = await api("dishes", { method:"POST", body: JSON.stringify(body) }); d = dish[0]; }
       await api("dish_items", { method:"POST", body: JSON.stringify(state.dishItems.map((it)=>({ dish_id: d.id, name: it.name, grams: it.grams, calories: (Number(it.calories)*it.grams)/100, protein: (Number(it.protein)*it.grams)/100, fat: (Number(it.fat)*it.grams)/100, carbs: (Number(it.carbs)*it.grams)/100 }))) });
       toast(state.editDishId?"Страву оновлено":"Страву збережено");
@@ -588,7 +588,7 @@
       const body = { user_id: uid, name, calories: cal, protein: parseFloat(document.getElementById("npProtein").value.replace(",", "."))||0, fat: parseFloat(document.getElementById("npFat").value.replace(",", "."))||0, carbs: parseFloat(document.getElementById("npCarbs").value.replace(",", "."))||0, brand: state.barcode||null };
       if(img) body.image_url = img;
       let rows;
-      if(state.editProductId){ await api('products?id=eq.'+state.editProductId,{method:'PATCH',body:JSON.stringify(body)}); rows = await api('products?id=eq.'+state.editProductId+'&select=*'); }
+      if(state.editProductId){ rows = await api('products?id=eq.'+state.editProductId,{method:'PATCH',body:JSON.stringify(body),headers:{Prefer:'return=representation'}}); }
       else { rows = await api("products", { method:"POST", body: JSON.stringify(body) }); }
       toast(state.editProductId?"Продукт оновлено":"Продукт збережено"); state.barcode=null; delete state.editProductId; document.getElementById("npBarcode").textContent="";
       document.getElementById("npName").value=""; document.getElementById("npCal").value=""; document.getElementById("npProtein").value=""; document.getElementById("npFat").value=""; document.getElementById("npCarbs").value="";
