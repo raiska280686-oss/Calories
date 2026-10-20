@@ -555,7 +555,7 @@
     document.getElementById("backToSearch").addEventListener("click", ()=>{stopScan(); setTab("prod"); showView("viewProduct");});
     document.getElementById("backFromNew").addEventListener("click", ()=>setTab("prod"));
     document.getElementById("backToDishes").addEventListener("click", ()=>setTab("dish"));
-    document.getElementById("newProduct").addEventListener("click", ()=>{ state.barcode=null; document.getElementById("npBarcode").textContent=""; if(typeof stopScan==='function') stopScan(); setTab("prod"); showView("newProductForm"); });
+    document.getElementById("newProduct").addEventListener("click", ()=>{ state.barcode=null; document.getElementById("npBarcode").textContent=""; if(typeof stopScan==='function') try{stopScan();}catch(e){} var seg=document.getElementById('tabsSeg'); if(seg)seg.style.display='none'; document.getElementById("tabProd").classList.add("active"); document.getElementById("tabDish").classList.remove("active"); document.getElementById("tabNewDish").classList.remove("active"); for(var i=0;i<['viewProduct','viewDish','viewNewDish','pickAmount','pickDishPortion','newProductForm'].length;i++){var idv=['viewProduct','viewDish','viewNewDish','pickAmount','pickDishPortion','newProductForm'][i];document.getElementById(idv).style.display=idv==='newProductForm'?'block':'none';} });
     document.getElementById("saveEntry").addEventListener("click", saveEntry);
     document.getElementById("saveDishEntry").addEventListener("click", saveDishEntry);
     document.getElementById("saveProduct").addEventListener("click", saveProduct);
