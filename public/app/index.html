@@ -391,11 +391,16 @@
 
     async function onBarcode(code) {
       toast("Шукаю продукт...");
+      if (!userId) {
+        toast("Немає user_id — відкрий через бота");
+        return;
+      }
       try {
+        const uid = Number(userId);
         const found = await lookupBarcode(code);
 
         const existing = await api(
-          `products?user_id=eq.${userId}&brand=eq.${encodeURIComponent(code)}&select=*&limit=1`
+          `products?user_id=eq.${uid}&brand=eq.${encodeURIComponent(code)}&select=*&limit=1`
         );
         if (existing.length) {
           showView("pickProduct");
@@ -419,7 +424,7 @@
         const rows = await api("products", {
           method: "POST",
           body: JSON.stringify({
-            user_id: userId, name: found.name, calories: found.calories || 0,
+            user_id: uid, name: found.name, calories: found.calories || 0,
             protein: found.protein, fat: found.fat, carbs: found.carbs,
             brand: code,
           }),
@@ -519,12 +524,12 @@
     // ---- Boot ----
     (async () => {
       const u = tg?.initDataUnsafe?.user;
-      let uid = u?.id;
-      if (!uid) {
+      let uid = u?.id ? Number(u.id) : null;
+      if (!uid || Number.isNaN(uid)) {
         const q = new URLSearchParams(location.search).get("user_id");
         if (q && q !== "null" && /^\d+$/.test(q)) uid = Number(q);
       }
-      userId = uid || null;
+      userId = (uid && Number.isInteger(uid)) ? uid : null;
       console.log("Telegram:", !!tg, "user:", u, "userId:", userId);
       if (!userId) {
         toast("Відкрий через Telegram-бота");
