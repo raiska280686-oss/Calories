@@ -596,7 +596,7 @@
       var seg2=document.getElementById('tabsSeg'); if(seg2)seg2.style.display='flex';
       document.getElementById("tabProd").classList.add("active"); document.getElementById("tabDish").classList.remove("active"); document.getElementById("tabNewDish").classList.remove("active");
       for(var i=0;i<['viewProduct','viewDish','viewNewDish','pickAmount','pickDishPortion','newProductForm'].length;i++){var idv=['viewProduct','viewDish','viewNewDish','pickAmount','pickDishPortion','newProductForm'][i];document.getElementById(idv).style.display=idv==='viewProduct'?'block':'none';}
-      loadProducts(''); if(rows&&rows[0]) pickProduct(rows[0]);
+      loadProducts(''); if(rows&&rows[0]){ pickProduct(rows[0]); } else { loadProducts(''); }
     }
 
     function toggleBarcodeBox(){ const box=document.getElementById("barcodeBox"); box.style.display = box.style.display==="none"?"block":"none"; if(box.style.display==="block") document.getElementById("barcodeInput").focus(); }
