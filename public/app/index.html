@@ -483,9 +483,12 @@
       await api("dish_items", { method:"POST", body: JSON.stringify(state.dishItems.map((it)=>({ dish_id: d.id, name: it.name, grams: it.grams, calories: (Number(it.calories)*it.grams)/100, protein: (Number(it.protein)*it.grams)/100, fat: (Number(it.fat)*it.grams)/100, carbs: (Number(it.carbs)*it.grams)/100 }))) });
       toast("Страву збережено");
       document.getElementById("dishName").value="";
-      document.getElementById("dishPhoto").value=""; var dpv=document.getElementById("dishPhotoPreview"); dpv.style.display='none'; dpv.style.backgroundImage='none';
+      var dpf=document.getElementById("dishPhoto"); if(dpf) dpf.value=""; var dpv=document.getElementById("dishPhotoPreview"); if(dpv){ dpv.style.display='none'; dpv.style.backgroundImage='none'; }
       state.dishItems=[]; renderDishItems();
-      setTab("dish"); loadDishes();
+      var seg2=document.getElementById('tabsSeg'); if(seg2)seg2.style.display='flex';
+      document.getElementById("tabDish").classList.add("active"); document.getElementById("tabProd").classList.remove("active"); document.getElementById("tabNewDish").classList.remove("active");
+      for(var i=0;i<['viewProduct','viewDish','viewNewDish','pickAmount','pickDishPortion','newProductForm'].length;i++){var idv=['viewProduct','viewDish','viewNewDish','pickAmount','pickDishPortion','newProductForm'][i];document.getElementById(idv).style.display=idv==='viewDish'?'block':'none';}
+      loadDishes();
     }
 
     // Сканер/код
