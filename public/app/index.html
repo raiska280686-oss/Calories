@@ -524,13 +524,15 @@
     function lookupFromInput(){ const code=document.getElementById("barcodeInput").value.replace(/\D/g,""); if(!code)return toast("Введи цифри"); onBarcode(code); }
 
     // Events
-    document.getElementById("meals").addEventListener("click", (e) => {
-      const m = e.target.closest(".add[data-meal]");
-      if (m) { openSheet(m.getAttribute("data-meal")); return; }
-      const d = e.target.closest("[data-del]");
-      if (d) { deleteEntry(d.getAttribute("data-del")); }
-    });
-    document.getElementById("addBtn").addEventListener("click", function(){ openSheet("breakfast"); }, false);
+    document.getElementById("meals").addEventListener("click", function(e){
+      var m = e.target.closest ? e.target.closest(".add[data-meal]") : null;
+      if (!m && e.target.classList && e.target.classList.contains('add')) m = e.target;
+      if (m && m.getAttribute && m.getAttribute('data-meal')) { openSheet(m.getAttribute('data-meal')); return; }
+      var d = e.target.closest ? e.target.closest("[data-del]") : null;
+      if (!d && e.target.getAttribute && e.target.getAttribute('data-del')) d = e.target;
+      if (d && d.getAttribute) { deleteEntry(d.getAttribute('data-del')); }
+    }, true);
+    document.getElementById("addBtn").addEventListener("click", function(e){ e.preventDefault(); openSheet("breakfast"); }, false);
     document.getElementById("closeSheet").addEventListener("click", closeSheet);
     document.getElementById("tabProd").addEventListener("click", ()=>setTab("prod"));
     document.getElementById("tabDish").addEventListener("click", ()=>setTab("dish"));
