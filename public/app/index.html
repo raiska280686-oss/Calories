@@ -104,6 +104,9 @@
       <h3 id="sheetTitle">Додати страву</h3>
       <div id="pickProduct">
         <input id="search" placeholder="Пошук продукту..." autocomplete="off" />
+        <div class="row2" style="margin-bottom:10px">
+          <button class="primary" style="position:static;border-radius:10px;padding:12px" id="scanBtn">📷 Сканувати</button>
+        </div>
         <div class="results" id="results"></div>
         <div class="close" id="newProduct">+ Новий продукт</div>
       </div>
@@ -346,6 +349,67 @@
       pickProduct(rows[0]);
     }
 
+    async function lookupBarcode(code) {
+      try {
+        const r = await fetch(
+          `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json`
+        );
+        const d = await r.json();
+        if (d.status !== 1 || !d.product) return null;
+        const n = d.product.nutriments || {};
+        const name = d.product.product_name_uk || d.product.product_name ||
+          d.product.generic_name || `Продукт ${code}`;
+        return {
+          barcode: code,
+          name: `${name}${d.product.brands ? " (" + d.product.brands + ")" : ""}`,
+          calories: n["energy-kcal_100g"] ?? (n["energy_100g"] ? n["energy_100g"] / 4.184 : 0),
+          protein: n.proteins_100g || 0,
+          fat: n.fat_100g || 0,
+          carbs: n.carbohydrates_100g || 0,
+        };
+      } catch (e) {
+        return null;
+      }
+    }
+
+    async function onBarcode(code) {
+      toast("Шукаю продукт...");
+      const found = await lookupBarcode(code);
+      if (!found) return toast("Продукт не знайдено в базі");
+
+      const existing = await api(
+        `products?user_id=eq.${userId}&brand=eq.${encodeURIComponent(code)}&select=*&limit=1`
+      );
+      let product;
+      if (existing.length) {
+        product = existing[0];
+      } else {
+        const rows = await api("products", {
+          method: "POST",
+          body: JSON.stringify({
+            user_id: userId, name: found.name, calories: found.calories || 0,
+            protein: found.protein, fat: found.fat, carbs: found.carbs,
+            brand: code,
+          }),
+        });
+        product = rows[0];
+      }
+      showView("pickProduct");
+      pickProduct(product);
+      toast(found.name);
+    }
+
+    function scanBarcode() {
+      if (!tg) return toast("Сканування доступне лише в Telegram");
+      if (!tg.showScanQrPopup) return toast("Онови Telegram");
+      tg.showScanQrPopup({ text: "Наведи на штрихкод" }, (text) => {
+        if (!text) return;
+        tg.closeScanQrPopup();
+        onBarcode(text);
+        return true;
+      });
+    }
+
     // ---- Events ----
     document.getElementById("addBtn").addEventListener("click", () => openSheet("breakfast"));
     document.getElementById("closeSheet").addEventListener("click", closeSheet);
@@ -354,6 +418,7 @@
     document.getElementById("newProduct").addEventListener("click", () => showView("newProductForm"));
     document.getElementById("saveEntry").addEventListener("click", saveEntry);
     document.getElementById("saveProduct").addEventListener("click", saveProduct);
+    document.getElementById("scanBtn").addEventListener("click", scanBarcode);
     document.getElementById("grams").addEventListener("input", updatePreview);
     let timer;
     document.getElementById("search").addEventListener("input", (e) => {
