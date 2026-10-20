@@ -48,7 +48,7 @@
     .sheet { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; z-index: 10; }
     .sheet.open { display: block; }
     .sheet-body {
-      position: absolute; left: 0; right: 0; bottom: 0; max-height: 88vh; overflow-y: auto;
+      position: absolute; left: 0; right: 0; bottom: 0; max-height: 92vh; overflow-y: auto;
       background: var(--bg); border-radius: 18px 18px 0 0; padding: 16px 16px 24px;
     }
     .sheet-body h3 { margin: 0 0 12px; font-size: 17px; }
@@ -56,7 +56,7 @@
       width: 100%; padding: 12px; border-radius: 10px; border: 1px solid rgba(128,128,128,.3);
       background: var(--bg); color: var(--text); font-size: 16px; margin-bottom: 10px;
     }
-    .results { max-height: 46vh; overflow-y: auto; }
+    .results { max-height: 40vh; overflow-y: auto; }
     .result { padding: 11px 4px; border-bottom: 1px solid rgba(128,128,128,.15); cursor: pointer; }
     .result small { color: var(--hint); }
     .row2 { display: flex; gap: 8px; }
@@ -74,6 +74,14 @@
       background: var(--card); color: var(--text); font-weight: 600;
     }
     .tabbar button.active { background: var(--btn); color: var(--btn-text); }
+    .seg { display: flex; gap: 6px; margin-bottom: 10px; }
+    .seg button {
+      flex: 1; padding: 10px; border: none; border-radius: 10px; font-size: 14px;
+      background: var(--card); color: var(--text); font-weight: 600;
+    }
+    .seg button.active { background: var(--btn); color: var(--btn-text); }
+    .dish-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(128,128,128,.15); font-size: 14px; }
+    .sum { font-weight: 600; text-align: right; padding: 8px 0; }
   </style>
 </head>
 <body>
@@ -98,12 +106,19 @@
   <h2 id="dateLabel"></h2>
   <div id="meals"></div>
 
-  <button class="primary" id="addBtn">+ Додати страву</button>
+  <button class="primary" id="addBtn">+ Додати</button>
 
   <div class="sheet" id="sheet">
     <div class="sheet-body">
-      <h3 id="sheetTitle">Додати страву</h3>
-      <div id="pickProduct">
+      <h3 id="sheetTitle">Додати</h3>
+      <div class="seg">
+        <button id="tabProd" class="active">Продукт</button>
+        <button id="tabDish">Страва</button>
+        <button id="tabNewDish">Нова страва</button>
+      </div>
+
+      <!-- Продукт -->
+      <div id="viewProduct">
         <input id="search" placeholder="Пошук продукту..." autocomplete="off" />
         <div class="row2" style="margin-bottom:10px">
           <button class="primary" style="position:static;border-radius:10px;padding:12px" id="scanQrBtn">📷 Сканер</button>
@@ -120,6 +135,24 @@
         <div class="results" id="results"></div>
         <div class="close" id="newProduct">+ Новий продукт</div>
       </div>
+
+      <!-- Страва -->
+      <div id="viewDish" style="display:none">
+        <input id="dishSearch" placeholder="Пошук страви..." autocomplete="off" />
+        <div class="results" id="dishResults"></div>
+      </div>
+
+      <!-- Нова страва -->
+      <div id="viewNewDish" style="display:none">
+        <input id="dishName" placeholder="Назва страви (напр. Борщ)" />
+        <input id="dishIngSearch" placeholder="Додати продукт до страви..." autocomplete="off" />
+        <div class="results" id="dishIngResults" style="max-height:30vh"></div>
+        <h2>Інгредієнти</h2>
+        <div id="dishItems"></div>
+        <div class="sum">Всього: <span id="dishTotal">0 г</span> · <span id="dishKcal">0</span> ккал · Б<span id="dishP">0</span> Ж<span id="dishF">0</span> В<span id="dishC">0</span></div>
+        <button class="primary" style="position:static;border-radius:12px;margin-top:6px" id="saveDish">Зберегти страву</button>
+      </div>
+
       <div id="pickAmount" style="display:none">
         <div id="amountName" style="font-weight:600;margin-bottom:4px"></div>
         <small id="amountHint" style="color:var(--hint)"></small>
@@ -128,6 +161,16 @@
         <button class="primary" style="position:static;border-radius:12px;margin-top:6px" id="saveEntry">Зберегти</button>
         <div class="close" id="backToSearch">‹ Назад</div>
       </div>
+
+      <div id="pickDishPortion" style="display:none">
+        <div id="dishPortionName" style="font-weight:600;margin-bottom:4px"></div>
+        <small id="dishPortionHint" style="color:var(--hint)"></small>
+        <input id="dishPortionGrams" type="number" inputmode="decimal" placeholder="Грами порції (напр. 250)" style="margin-top:10px" />
+        <div class="results" id="dishPortionPreview" style="padding:4px 0;color:var(--hint);font-size:14px"></div>
+        <button class="primary" style="position:static;border-radius:12px;margin-top:6px" id="saveDishEntry">Додати в щоденник</button>
+        <div class="close" id="backToDishes">‹ Назад</div>
+      </div>
+
       <div id="newProductForm" style="display:none">
         <div id="npBarcode" style="color:var(--hint);font-size:13px;margin-bottom:8px"></div>
         <input id="npName" placeholder="Назва продукту" />
@@ -142,6 +185,7 @@
         <button class="primary" style="position:static;border-radius:12px;margin-top:6px" id="saveProduct">Зберегти продукт</button>
         <div class="close" id="backFromNew">‹ Назад</div>
       </div>
+
       <div class="close" id="closeSheet">Закрити</div>
     </div>
   </div>
@@ -160,7 +204,7 @@
     let userId = null;
     let norm = null;
     let day = new Date();
-    let state = { product: null, meal: "breakfast" };
+    let state = { product: null, meal: "breakfast", dish: null, dishItems: [], dishPortion: null };
 
     const tg = window.Telegram?.WebApp;
     if (tg) { tg.ready(); tg.expand(); }
@@ -184,6 +228,7 @@
 
     const iso = (d) => d.toISOString().slice(0, 10);
     const r0 = (n) => Math.round(n);
+    const f1 = (n) => Math.round(n * 10) / 10;
 
     function toast(msg) {
       const t = document.getElementById("toast");
@@ -198,12 +243,8 @@
     }
 
     async function loadDay() {
-      document.getElementById("dateLabel").textContent = day.toLocaleDateString("uk-UA", {
-        day: "numeric", month: "long", weekday: "short",
-      });
-      const entries = await api(
-        `diary_entries?user_id=eq.${userId}&entry_date=eq.${iso(day)}&select=*&order=created_at.asc`
-      );
+      document.getElementById("dateLabel").textContent = day.toLocaleDateString("uk-UA", { day: "numeric", month: "long", weekday: "short" });
+      const entries = await api(`diary_entries?user_id=eq.${userId}&entry_date=eq.${iso(day)}&select=*&order=created_at.asc`);
       render(entries);
     }
 
@@ -212,23 +253,22 @@
       const byMeal = {};
       MEALS.forEach((m) => (byMeal[m.id] = []));
       entries.forEach((e) => {
-        kcal += e.calories; protein += e.protein; fat += e.fat; carbs += e.carbs;
+        kcal += Number(e.calories) || 0; protein += Number(e.protein) || 0; fat += Number(e.fat) || 0; carbs += Number(e.carbs) || 0;
         (byMeal[e.meal] ||= []).push(e);
       });
 
       document.getElementById("eaten").textContent = `${r0(kcal)} ккал`;
-      document.getElementById("pVal").textContent = `${r0(protein)} г`;
-      document.getElementById("fVal").textContent = `${r0(fat)} г`;
-      document.getElementById("cVal").textContent = `${r0(carbs)} г`;
+      document.getElementById("pVal").textContent = `${f1(protein)} г`;
+      document.getElementById("fVal").textContent = `${f1(fat)} г`;
+      document.getElementById("cVal").textContent = `${f1(carbs)} г`;
       document.getElementById("leftVal").textContent = norm ? `${r0(norm - kcal)} ккал` : "—";
-      document.getElementById("progress").style.width =
-        norm ? Math.min(100, (kcal / norm) * 100) + "%" : "0%";
+      document.getElementById("progress").style.width = norm ? Math.min(100, (kcal / norm) * 100) + "%" : "0%";
 
       const wrap = document.getElementById("meals");
       wrap.innerHTML = "";
       MEALS.forEach((m) => {
         const list = byMeal[m.id];
-        const sum = list.reduce((s, e) => s + e.calories, 0);
+        const sum = list.reduce((s, e) => s + (Number(e.calories) || 0), 0);
         const div = document.createElement("div");
         div.className = "meal";
         div.innerHTML = `
@@ -237,7 +277,7 @@
             <div class="entry">
               <div>
                 <div>${e.name}</div>
-                <div class="muted">${r0(e.grams)} г · Б${r0(e.protein)} Ж${r0(e.fat)} В${r0(e.carbs)}</div>
+                <div class="muted">${r0(e.grams)} г · Б${f1(e.protein)} Ж${f1(e.fat)} В${f1(e.carbs)}</div>
               </div>
               <div>
                 <b>${r0(e.calories)}</b>
@@ -249,12 +289,8 @@
         wrap.appendChild(div);
       });
 
-      wrap.querySelectorAll("[data-meal]").forEach((el) =>
-        el.addEventListener("click", () => openSheet(el.dataset.meal))
-      );
-      wrap.querySelectorAll("[data-del]").forEach((el) =>
-        el.addEventListener("click", () => deleteEntry(el.dataset.del))
-      );
+      wrap.querySelectorAll("[data-meal]").forEach((el) => el.addEventListener("click", () => openSheet(el.dataset.meal)));
+      wrap.querySelectorAll("[data-del]").forEach((el) => el.addEventListener("click", () => deleteEntry(el.dataset.del)));
     }
 
     async function deleteEntry(id) {
@@ -263,21 +299,30 @@
       toast("Видалено");
     }
 
-    // ---- Sheet ----
     const sheet = document.getElementById("sheet");
     function showView(v) {
-      for (const id of ["pickProduct", "pickAmount", "newProductForm"])
+      for (const id of ["viewProduct", "viewDish", "viewNewDish", "pickAmount", "pickDishPortion", "newProductForm"])
         document.getElementById(id).style.display = id === v ? "block" : "none";
-      if (v !== "pickProduct") stopScan();
+      if (v !== "viewProduct") stopScan();
+    }
+
+    function setTab(t) {
+      document.getElementById("tabProd").classList.toggle("active", t === "prod");
+      document.getElementById("tabDish").classList.toggle("active", t === "dish");
+      document.getElementById("tabNewDish").classList.toggle("active", t === "newdish");
+      showView(t === "prod" ? "viewProduct" : t === "dish" ? "viewDish" : t === "newdish" ? "viewNewDish" : "viewProduct");
+      if (t === "dish") loadDishes();
+      if (t === "newdish") { state.dishItems = []; renderDishItems(); }
     }
 
     function openSheet(meal) {
       state.meal = meal;
-      document.getElementById("sheetTitle").textContent =
-        "Додати в " + (MEALS.find((m) => m.id === meal)?.label || "");
-      showView("pickProduct");
+      document.getElementById("sheetTitle").textContent = "Додати в " + (MEALS.find((m) => m.id === meal)?.label || "");
+      setTab("prod");
       sheet.classList.add("open");
       document.getElementById("search").value = "";
+      document.getElementById("dishSearch").value = "";
+      document.getElementById("dishIngSearch").value = "";
       loadProducts("");
     }
 
@@ -288,27 +333,22 @@
       if (tg) tg.BackButton.hide();
     }
 
+    // Продукти
     async function loadProducts(q) {
+      const uid = Number(userId);
       const query = q.trim()
-        ? `products?or=(user_id.is.null,user_id.eq.${userId})&name=ilike.*${encodeURIComponent(q.trim())}*&select=*&limit=40`
-        : `products?or=(user_id.is.null,user_id.eq.${userId})&select=*&limit=40&order=name.asc`;
+        ? `products?or=(user_id.is.null,user_id.eq.${uid})&name=ilike.*${encodeURIComponent(q.trim())}*&select=*&limit=40`
+        : `products?or=(user_id.is.null,user_id.eq.${uid})&select=*&limit=40&order=name.asc`;
       const rows = await api(query);
       const box = document.getElementById("results");
-      box.innerHTML = rows.map((p) => `
-        <div class="result" data-id="${p.id}">
-          <div>${p.name}</div>
-          <small>${r0(p.calories)} ккал · Б${p.protein} Ж${p.fat} В${p.carbs} /100 г</small>
-        </div>`).join("") || `<div class="close">Нічого не знайдено</div>`;
-      box.querySelectorAll("[data-id]").forEach((el) =>
-        el.addEventListener("click", () => pickProduct(rows.find((p) => p.id == el.dataset.id)))
-      );
+      box.innerHTML = rows.map((p) => `<div class="result" data-id="${p.id}"><div>${p.name}</div><small>${r0(p.calories)} ккал · Б${p.protein} Ж${p.fat} В${p.carbs} /100 г</small></div>`).join("") || `<div class="close">Нічого не знайдено</div>`;
+      box.querySelectorAll("[data-id]").forEach((el) => el.addEventListener("click", () => pickProduct(rows.find((p) => p.id == el.dataset.id))));
     }
 
     function pickProduct(p) {
       state.product = p;
       document.getElementById("amountName").textContent = p.name;
-      document.getElementById("amountHint").textContent =
-        `${r0(p.calories)} ккал / 100 г · Б${p.protein} Ж${p.fat} В${p.carbs}`;
+      document.getElementById("amountHint").textContent = `${r0(p.calories)} ккал / 100 г · Б${p.protein} Ж${p.fat} В${p.carbs}`;
       document.getElementById("grams").value = 100;
       updatePreview();
       showView("pickAmount");
@@ -318,218 +358,200 @@
       const p = state.product;
       if (!p) return;
       const g = parseFloat(document.getElementById("grams").value.replace(",", ".")) || 0;
-      const k = (p.calories * g) / 100;
-      document.getElementById("preview").textContent =
-        `${r0(k)} ккал · Б${r0(p.protein * g / 100)} Ж${r0(p.fat * g / 100)} В${r0(p.carbs * g / 100)}`;
+      const k = (Number(p.calories) * g) / 100;
+      document.getElementById("preview").textContent = `${r0(k)} ккал · Б${f1(Number(p.protein)*g/100)} Ж${f1(Number(p.fat)*g/100)} В${f1(Number(p.carbs)*g/100)}`;
     }
 
     async function saveEntry() {
       const p = state.product;
       const g = parseFloat(document.getElementById("grams").value.replace(",", "."));
       if (!p || !(g > 0)) return toast("Вкажи грами");
-      await api("diary_entries", {
-        method: "POST",
-        body: JSON.stringify({
-          user_id: userId, entry_date: iso(day), meal: state.meal,
-          product_id: p.id, name: p.name, grams: g,
-          calories: (p.calories * g) / 100, protein: (p.protein * g) / 100,
-          fat: (p.fat * g) / 100, carbs: (p.carbs * g) / 100,
-        }),
-      });
-      closeSheet();
-      loadDay();
-      toast("Додано");
+      const uid = Number(userId);
+      await api("diary_entries", { method: "POST", body: JSON.stringify({
+        user_id: uid, entry_date: iso(day), meal: state.meal,
+        product_id: p.id, name: p.name, grams: g,
+        calories: (Number(p.calories)*g)/100, protein: (Number(p.protein)*g)/100,
+        fat: (Number(p.fat)*g)/100, carbs: (Number(p.carbs)*g)/100,
+      })});
+      closeSheet(); loadDay(); toast("Додано");
     }
 
-    async function saveProduct() {
-      const name = document.getElementById("npName").value.trim();
-      const cal = parseFloat(document.getElementById("npCal").value.replace(",", "."));
-      if (!name || !(cal >= 0)) return toast("Заповни назву і калорії");
-      const rows = await api("products", {
-        method: "POST",
-        body: JSON.stringify({
-          user_id: userId, name, calories: cal,
-          protein: parseFloat(document.getElementById("npProtein").value.replace(",", ".")) || 0,
-          fat: parseFloat(document.getElementById("npFat").value.replace(",", ".")) || 0,
-          carbs: parseFloat(document.getElementById("npCarbs").value.replace(",", ".")) || 0,
-          brand: state.barcode || null,
-        }),
-      });
-      toast("Продукт збережено");
-      state.barcode = null;
-      document.getElementById("npName").value = "";
-      document.getElementById("npCal").value = "";
-      document.getElementById("npProtein").value = "";
-      document.getElementById("npFat").value = "";
-      document.getElementById("npCarbs").value = "";
-      pickProduct(rows[0]);
+    // Страви
+    async function loadDishes(q="") {
+      const uid = Number(userId);
+      let path = `dishes?or=(user_id.is.null,user_id.eq.${uid})&select=*&limit=40&order=created_at.desc`;
+      if (q.trim()) path = `dishes?or=(user_id.is.null,user_id.eq.${uid})&name=ilike.*${encodeURIComponent(q.trim())}*&select=*&limit=40`;
+      const rows = await api(path);
+      const box = document.getElementById("dishResults");
+      box.innerHTML = rows.map((d) => `<div class="result" data-did="${d.id}"><div>${d.name}</div><small>${r0(d.calories)} ккал на ${r0(d.total_grams)} г · Б${f1(d.protein)} Ж${f1(d.fat)} В${f1(d.carbs)}</small></div>`).join("") || `<div class="close">Немає страв</div>`;
+      box.querySelectorAll("[data-did]").forEach((el) => el.addEventListener("click", () => pickDish(rows.find((x) => x.id == el.dataset.did))));
+    }
+
+    function pickDish(d) {
+      state.dishPortion = d;
+      document.getElementById("dishPortionName").textContent = d.name;
+      document.getElementById("dishPortionHint").textContent = `Всього ${r0(d.total_grams)} г · ${r0(d.calories)} ккал · Б${f1(d.protein)} Ж${f1(d.fat)} В${f1(d.carbs)}`;
+      document.getElementById("dishPortionGrams").value = Math.min(250, Math.max(50, d.total_grams));
+      updateDishPortion();
+      showView("pickDishPortion");
+    }
+
+    function updateDishPortion() {
+      const d = state.dishPortion; if (!d) return;
+      const g = parseFloat(document.getElementById("dishPortionGrams").value.replace(",", ".")) || 0;
+      const ratio = (Number(d.total_grams) || 1) ? g / Number(d.total_grams) : 0;
+      document.getElementById("dishPortionPreview").textContent = `${r0(Number(d.calories)*ratio)} ккал · Б${f1(Number(d.protein)*ratio)} Ж${f1(Number(d.fat)*ratio)} В${f1(Number(d.carbs)*ratio)}`;
+    }
+
+    async function saveDishEntry() {
+      const d = state.dishPortion;
+      const g = parseFloat(document.getElementById("dishPortionGrams").value.replace(",", "."));
+      if (!d || !(g > 0)) return toast("Вкажи грами");
+      const uid = Number(userId);
+      const ratio = g / (Number(d.total_grams) || 1);
+      await api("diary_entries", { method: "POST", body: JSON.stringify({
+        user_id: uid, entry_date: iso(day), meal: state.meal,
+        product_id: null, name: d.name + " (страва)", grams: g,
+        calories: (Number(d.calories)*ratio), protein: (Number(d.protein)*ratio),
+        fat: (Number(d.fat)*ratio), carbs: (Number(d.carbs)*ratio),
+      })});
+      closeSheet(); loadDay(); toast("Додано");
+    }
+
+    async function addDishIng(p) {
+      const exists = state.dishItems.find((x) => x.product_id == p.id);
+      if (exists) { exists.grams = (exists.grams || 0) + 100; renderDishItems(); return; }
+      state.dishItems.push({ product_id: p.id, name: p.name, grams: 100, calories: p.calories, protein: p.protein, fat: p.fat, carbs: p.carbs });
+      renderDishItems();
+    }
+
+    function renderDishItems() {
+      let tg=0,tp=0,tf=0,tc=0,tt=0;
+      const box = document.getElementById("dishItems");
+      box.innerHTML = state.dishItems.map((it, idx) => {
+        const g = it.grams||0;
+        const c=Number(it.calories)||0,pr=Number(it.protein)||0,ft=Number(it.fat)||0,cb=Number(it.carbs)||0;
+        tg+=(c*g/100); tp+=(pr*g/100); tf+=(ft*g/100); tc+=(cb*g/100); tt+=g;
+        return `<div class="dish-item"><div><b>${it.name}</b><div class="muted">${f1(c*g/100)} ккал · Б${f1(pr*g/100)} Ж${f1(ft*g/100)} В${f1(cb*g/100)}</div></div><div><input type="number" value="${g}" style="width:80px;margin:0" data-idx="${idx}"> г <button data-rm="${idx}" style="border:none;background:none;color:#e35">✕</button></div></div>`;
+      }).join("") || `<div class="close">Додай продукти</div>`;
+      document.getElementById("dishTotal").textContent = r0(tt) + " г";
+      document.getElementById("dishKcal").textContent = r0(tg);
+      document.getElementById("dishP").textContent = f1(tp);
+      document.getElementById("dishF").textContent = f1(tf);
+      document.getElementById("dishC").textContent = f1(tc);
+      box.querySelectorAll("input").forEach((inp) => inp.addEventListener("change", (e) => { state.dishItems[e.target.dataset.idx].grams = parseFloat(e.target.value.replace(",", "."))||0; renderDishItems(); }));
+      box.querySelectorAll("[data-rm]").forEach((btn) => btn.addEventListener("click", () => { state.dishItems.splice(btn.dataset.rm,1); renderDishItems(); }));
+    }
+
+    async function saveDish() {
+      const name = document.getElementById("dishName").value.trim();
+      if (!name) return toast("Вкажи назву страви");
+      if (state.dishItems.length < 1) return toast("Додай інгредієнти");
+      const uid = Number(userId);
+      let tg=0,tp=0,tf=0,tc=0,tt=0;
+      state.dishItems.forEach((it)=>{ const g=it.grams||0; const c=Number(it.calories)||0,pr=Number(it.protein)||0,ft=Number(it.fat)||0,cb=Number(it.carbs)||0; tg+=(c*g/100); tp+=(pr*g/100); tf+=(ft*g/100); tc+=(cb*g/100); tt+=g; });
+      const dish = await api("dishes", { method:"POST", body: JSON.stringify({ user_id: uid, name, total_grams: tt, calories: tg, protein: tp, fat: tf, carbs: tc }) });
+      const d = dish[0];
+      await api("dish_items", { method:"POST", body: JSON.stringify(state.dishItems.map((it)=>({ dish_id: d.id, name: it.name, grams: it.grams, calories: (Number(it.calories)*it.grams)/100, protein: (Number(it.protein)*it.grams)/100, fat: (Number(it.fat)*it.grams)/100, carbs: (Number(it.carbs)*it.grams)/100 }))) });
+      toast("Страву збережено");
+      document.getElementById("dishName").value="";
+      state.dishItems=[]; renderDishItems();
+      setTab("dish"); loadDishes();
+    }
+
+    // Сканер/код
+    let html5Qr = null;
+    async function startScan() {
+      const box = document.getElementById("scannerBox");
+      box.style.display = "block";
+      if (!window.Html5Qrcode) { toast("Сканер недоступний"); box.style.display="none"; return; }
+      try {
+        html5Qr = new Html5Qrcode("reader");
+        await html5Qr.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 280, height: 160 } }, async (decodedText) => {
+          const code = String(decodedText).replace(/\D/g, "");
+          await stopScan();
+          if (code.length < 6) return toast("Код не розпізнано");
+          toast("Код: " + code); onBarcode(code);
+        }, () => {});
+      } catch(e) { console.error(e); toast("Немає доступу до камери"); box.style.display="none"; }
+    }
+    async function stopScan() {
+      const box = document.getElementById("scannerBox"); box.style.display="none";
+      if (html5Qr) { try { await html5Qr.stop(); await html5Qr.clear(); } catch(e){} html5Qr=null; }
     }
 
     async function lookupBarcode(code) {
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), 15000);
       try {
-        const r = await fetch(
-          `https://calories-raisa8.vercel.app/off?code=${encodeURIComponent(code)}`,
-          { signal: ctrl.signal }
-        );
+        const r = await fetch(`https://calories-raisa8.vercel.app/off?code=${encodeURIComponent(code)}`, { signal: ctrl.signal });
         const d = await r.json();
         if (!d || !d.found) return null;
-        return {
-          name: d.name,
-          calories: d.calories || 0,
-          protein: d.protein || 0,
-          fat: d.fat || 0,
-          carbs: d.carbs || 0,
-        };
-      } catch (e) {
-        toast("Помилка пошуку: " + e.message);
-        return null;
-      } finally {
-        clearTimeout(timer);
-      }
+        return { name: d.name, calories: d.calories || 0, protein: d.protein || 0, fat: d.fat || 0, carbs: d.carbs || 0 };
+      } catch(e) { toast("Помилка пошуку"); return null; } finally { clearTimeout(timer); }
     }
 
     async function onBarcode(code) {
       toast("Шукаю продукт...");
-      if (!userId) {
-        toast("Немає user_id — відкрий через бота");
-        return;
-      }
+      if (!userId) return toast("Немає user_id");
       try {
         const uid = Number(userId);
         const found = await lookupBarcode(code);
-
-        const existing = await api(
-          `products?user_id=eq.${uid}&brand=eq.${encodeURIComponent(code)}&select=*&limit=1`
-        );
-        if (existing.length) {
-          showView("pickProduct");
-          pickProduct(existing[0]);
-          toast(existing[0].name);
-          return;
-        }
-
+        const existing = await api(`products?user_id=eq.${uid}&brand=eq.${encodeURIComponent(code)}&select=*&limit=1`);
+        if (existing.length) { showView("viewProduct"); pickProduct(existing[0]); toast(existing[0].name); return; }
         if (!found) {
-          document.getElementById("npName").value = "";
-          document.getElementById("npCal").value = "";
-          document.getElementById("npProtein").value = "";
-          document.getElementById("npFat").value = "";
-          document.getElementById("npCarbs").value = "";
-          state.barcode = code;
-          document.getElementById("npBarcode").textContent = "Штрихкод: " + code;
-          showView("newProductForm");
-          toast("Немає в базі — внеси вручну");
-          return;
+          document.getElementById("npName").value=""; document.getElementById("npCal").value=""; document.getElementById("npProtein").value=""; document.getElementById("npFat").value=""; document.getElementById("npCarbs").value="";
+          state.barcode = code; document.getElementById("npBarcode").textContent = "Штрихкод: " + code;
+          setTab("prod"); showView("newProductForm"); toast("Немає в базі — внеси вручну"); return;
         }
-
-        const rows = await api("products", {
-          method: "POST",
-          body: JSON.stringify({
-            user_id: uid, name: found.name, calories: found.calories || 0,
-            protein: found.protein, fat: found.fat, carbs: found.carbs,
-            brand: code,
-          }),
-        });
-        const product = rows[0];
-        showView("pickProduct");
-        pickProduct(product);
-        toast(found.name);
-      } catch (e) {
-        toast("Помилка: " + e.message);
-      }
+        const rows = await api("products", { method:"POST", body: JSON.stringify({ user_id: uid, name: found.name, calories: found.calories||0, protein: found.protein||0, fat: found.fat||0, carbs: found.carbs||0, brand: code })});
+        const product = rows[0]; setTab("prod"); showView("viewProduct"); pickProduct(product); toast(found.name);
+      } catch(e) { toast("Помилка: " + e.message); }
     }
 
-    let html5Qr = null;
-
-    async function startScan() {
-      const box = document.getElementById("scannerBox");
-      box.style.display = "block";
-      if (!window.Html5Qrcode) {
-        toast("Сканер недоступний");
-        box.style.display = "none";
-        return;
-      }
-      try {
-        html5Qr = new Html5Qrcode("reader", { formatsToSupport: [
-          Html5QrcodeSupportedFormats.EAN_13,
-          Html5QrcodeSupportedFormats.EAN_8,
-          Html5QrcodeSupportedFormats.UPC_A,
-          Html5QrcodeSupportedFormats.UPC_E,
-          Html5QrcodeSupportedFormats.CODE_128,
-        ]});
-        await html5Qr.start(
-          { facingMode: "environment" },
-          { fps: 10, qrbox: { width: 280, height: 160 } },
-          async (decodedText) => {
-            const code = String(decodedText).replace(/\D/g, "");
-            await stopScan();
-            if (code.length < 6) {
-              toast("Код не розпізнано: " + decodedText);
-              return;
-            }
-            toast("Код: " + code);
-            onBarcode(code);
-          },
-          () => {}
-        );
-      } catch (e) {
-        console.error(e);
-        toast("Немає доступу до камери");
-        box.style.display = "none";
-      }
+    async function saveProduct() {
+      const name = document.getElementById("npName").value.trim();
+      const cal = parseFloat(document.getElementById("npCal").value.replace(",", "."));
+      if (!name || !(cal>=0)) return toast("Заповни назву і калорії");
+      const uid = Number(userId);
+      const rows = await api("products", { method:"POST", body: JSON.stringify({ user_id: uid, name, calories: cal, protein: parseFloat(document.getElementById("npProtein").value.replace(",", "."))||0, fat: parseFloat(document.getElementById("npFat").value.replace(",", "."))||0, carbs: parseFloat(document.getElementById("npCarbs").value.replace(",", "."))||0, brand: state.barcode||null })});
+      toast("Продукт збережено"); state.barcode=null; document.getElementById("npBarcode").textContent="";
+      document.getElementById("npName").value=""; document.getElementById("npCal").value=""; document.getElementById("npProtein").value=""; document.getElementById("npFat").value=""; document.getElementById("npCarbs").value="";
+      setTab("prod"); pickProduct(rows[0]);
     }
 
-    async function stopScan() {
-      const box = document.getElementById("scannerBox");
-      box.style.display = "none";
-      if (html5Qr) {
-        try { await html5Qr.stop(); await html5Qr.clear(); } catch (e) {}
-        html5Qr = null;
-      }
-    }
+    function toggleBarcodeBox(){ const box=document.getElementById("barcodeBox"); box.style.display = box.style.display==="none"?"block":"none"; if(box.style.display==="block") document.getElementById("barcodeInput").focus(); }
+    function lookupFromInput(){ const code=document.getElementById("barcodeInput").value.replace(/\D/g,""); if(!code)return toast("Введи цифри"); onBarcode(code); }
 
-    function toggleBarcodeBox() {
-      const box = document.getElementById("barcodeBox");
-      box.style.display = box.style.display === "none" ? "block" : "none";
-      if (box.style.display === "block") document.getElementById("barcodeInput").focus();
-    }
-
-    function lookupFromInput() {
-      const code = document.getElementById("barcodeInput").value.replace(/\D/g, "");
-      if (!code) return toast("Введи цифри штрихкоду");
-      onBarcode(code);
-    }
-
-    // ---- Events ----
+    // Events
     document.getElementById("addBtn").addEventListener("click", () => openSheet("breakfast"));
     document.getElementById("closeSheet").addEventListener("click", closeSheet);
-    document.getElementById("backToSearch").addEventListener("click", () => { stopScan(); showView("pickProduct"); });
-    document.getElementById("backFromNew").addEventListener("click", () => showView("pickProduct"));
-    document.getElementById("newProduct").addEventListener("click", () => {
-      state.barcode = null;
-      document.getElementById("npBarcode").textContent = "";
-      stopScan();
-      showView("newProductForm");
-    });
+    document.getElementById("tabProd").addEventListener("click", ()=>setTab("prod"));
+    document.getElementById("tabDish").addEventListener("click", ()=>setTab("dish"));
+    document.getElementById("tabNewDish").addEventListener("click", ()=>setTab("newdish"));
+    document.getElementById("backToSearch").addEventListener("click", ()=>{stopScan(); setTab("prod"); showView("viewProduct");});
+    document.getElementById("backFromNew").addEventListener("click", ()=>setTab("prod"));
+    document.getElementById("backToDishes").addEventListener("click", ()=>setTab("dish"));
+    document.getElementById("newProduct").addEventListener("click", ()=>{ state.barcode=null; document.getElementById("npBarcode").textContent=""; stopScan(); setTab("prod"); showView("newProductForm"); });
     document.getElementById("saveEntry").addEventListener("click", saveEntry);
+    document.getElementById("saveDishEntry").addEventListener("click", saveDishEntry);
     document.getElementById("saveProduct").addEventListener("click", saveProduct);
+    document.getElementById("saveDish").addEventListener("click", saveDish);
     document.getElementById("scanQrBtn").addEventListener("click", startScan);
     document.getElementById("stopScan").addEventListener("click", stopScan);
     document.getElementById("barcodeBtn").addEventListener("click", toggleBarcodeBox);
     document.getElementById("lookupBtn").addEventListener("click", lookupFromInput);
     document.getElementById("grams").addEventListener("input", updatePreview);
-    let timer;
-    document.getElementById("search").addEventListener("input", (e) => {
-      clearTimeout(timer);
-      timer = setTimeout(() => loadProducts(e.target.value), 250);
-    });
-    document.getElementById("prevDay").addEventListener("click", () => { day.setDate(day.getDate() - 1); loadDay(); });
-    document.getElementById("nextDay").addEventListener("click", () => { day.setDate(day.getDate() + 1); loadDay(); });
-    document.getElementById("todayBtn").addEventListener("click", () => { day = new Date(); loadDay(); });
+    document.getElementById("dishPortionGrams").addEventListener("input", updateDishPortion);
+    let timer1,timer2,timer3;
+    document.getElementById("search").addEventListener("input", (e)=>{ clearTimeout(timer1); timer1=setTimeout(()=>loadProducts(e.target.value),250); });
+    document.getElementById("dishSearch").addEventListener("input", (e)=>{ clearTimeout(timer2); timer2=setTimeout(()=>loadDishes(e.target.value),250); });
+    document.getElementById("dishIngSearch").addEventListener("input", (e)=>{ clearTimeout(timer3); timer3=setTimeout(async()=>{ const uid=Number(userId); const q=e.target.value.trim(); const path=q?`products?or=(user_id.is.null,user_id.eq.${uid})&name=ilike.*${encodeURIComponent(q)}*&select=*&limit=20`:`products?or=(user_id.is.null,user_id.eq.${uid})&select=*&limit=20&order=name.asc`; const rows=await api(path); const box=document.getElementById("dishIngResults"); box.innerHTML=rows.map((p)=>`<div class="result" data-pid="${p.id}"><div>${p.name}</div><small>${r0(p.calories)} ккал /100 г</small></div>`).join("")||`<div class="close">Немає</div>`; box.querySelectorAll("[data-pid]").forEach((el)=>el.addEventListener("click",()=>{ const p=rows.find(x=>x.id==el.dataset.pid); addDishIng(p); document.getElementById("dishIngSearch").value=""; box.innerHTML=""; })); },250); });
+    document.getElementById("prevDay").addEventListener("click", ()=>{ day.setDate(day.getDate()-1); loadDay(); });
+    document.getElementById("nextDay").addEventListener("click", ()=>{ day.setDate(day.getDate()+1); loadDay(); });
+    document.getElementById("todayBtn").addEventListener("click", ()=>{ day=new Date(); loadDay(); });
 
-    // ---- Boot ----
-    (async () => {
+    (async ()=>{
       const u = tg?.initDataUnsafe?.user;
       let uid = u?.id ? Number(u.id) : null;
       if (!uid || Number.isNaN(uid)) {
@@ -537,18 +559,8 @@
         if (q && q !== "null" && /^\d+$/.test(q)) uid = Number(q);
       }
       userId = (uid && Number.isInteger(uid)) ? uid : null;
-      console.log("Telegram:", !!tg, "user:", u, "userId:", userId);
-      if (!userId) {
-        toast("Відкрий через Telegram-бота");
-        return;
-      }
-      try {
-        await loadProfile();
-        await loadDay();
-      } catch (e) {
-        console.error(e);
-        toast("Помилка завантаження");
-      }
+      if (!userId) { toast("Відкрий через Telegram-бота"); return; }
+      try { await loadProfile(); await loadDay(); } catch(e){ console.error(e); toast("Помилка завантаження"); }
     })();
   </script>
 </body>
