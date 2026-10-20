@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <title>Калорії</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <style>
     :root {
       --bg: var(--tg-theme-bg-color, #ffffff);
@@ -105,8 +106,12 @@
       <div id="pickProduct">
         <input id="search" placeholder="Пошук продукту..." autocomplete="off" />
         <div class="row2" style="margin-bottom:10px">
-          <button class="primary" style="position:static;border-radius:10px;padding:12px" id="scanQrBtn">📷 QR</button>
+          <button class="primary" style="position:static;border-radius:10px;padding:12px" id="scanQrBtn">📷 Сканер</button>
           <button class="primary" style="position:static;border-radius:10px;padding:12px" id="barcodeBtn">🔢 Код</button>
+        </div>
+        <div id="scannerBox" style="display:none;margin-bottom:10px">
+          <div id="reader" style="width:100%;border-radius:12px;overflow:hidden"></div>
+          <div class="close" id="stopScan">Стоп</div>
         </div>
         <div id="barcodeBox" style="display:none;margin-bottom:10px">
           <input id="barcodeInput" type="text" inputmode="numeric" placeholder="Введи штрихкод (цифри)" />
@@ -262,6 +267,7 @@
     function showView(v) {
       for (const id of ["pickProduct", "pickAmount", "newProductForm"])
         document.getElementById(id).style.display = id === v ? "block" : "none";
+      if (v !== "pickProduct") stopScan();
     }
 
     function openSheet(meal) {
@@ -276,6 +282,8 @@
 
     function closeSheet() {
       sheet.classList.remove("open");
+      document.getElementById("scannerBox").style.display = "none";
+      if (html5Qr) stopScan();
       if (tg) tg.BackButton.hide();
     }
 
@@ -404,15 +412,41 @@
       toast(found.name);
     }
 
-    function scanQr() {
-      if (!tg) return toast("Сканування доступне лише в Telegram");
-      if (!tg.showScanQrPopup) return toast("Онови Telegram");
-      tg.showScanQrPopup({ text: "Наведи на QR-код" }, (text) => {
-        if (!text) return;
-        tg.closeScanQrPopup();
-        onBarcode(text.replace(/\D/g, ""));
-        return true;
-      });
+    let html5Qr = null;
+
+    async function startScan() {
+      const box = document.getElementById("scannerBox");
+      box.style.display = "block";
+      if (!window.Html5Qrcode) {
+        toast("Сканер недоступний");
+        box.style.display = "none";
+        return;
+      }
+      try {
+        html5Qr = new Html5Qrcode("reader");
+        await html5Qr.start(
+          { facingMode: "environment" },
+          { fps: 10, qrbox: { width: 260, height: 160 } },
+          async (decodedText) => {
+            await stopScan();
+            onBarcode(String(decodedText).replace(/\D/g, ""));
+          },
+          () => {}
+        );
+      } catch (e) {
+        console.error(e);
+        toast("Немає доступу до камери");
+        box.style.display = "none";
+      }
+    }
+
+    async function stopScan() {
+      const box = document.getElementById("scannerBox");
+      box.style.display = "none";
+      if (html5Qr) {
+        try { await html5Qr.stop(); await html5Qr.clear(); } catch (e) {}
+        html5Qr = null;
+      }
     }
 
     function toggleBarcodeBox() {
@@ -430,12 +464,13 @@
     // ---- Events ----
     document.getElementById("addBtn").addEventListener("click", () => openSheet("breakfast"));
     document.getElementById("closeSheet").addEventListener("click", closeSheet);
-    document.getElementById("backToSearch").addEventListener("click", () => showView("pickProduct"));
+    document.getElementById("backToSearch").addEventListener("click", () => { stopScan(); showView("pickProduct"); });
     document.getElementById("backFromNew").addEventListener("click", () => showView("pickProduct"));
-    document.getElementById("newProduct").addEventListener("click", () => showView("newProductForm"));
+    document.getElementById("newProduct").addEventListener("click", () => { stopScan(); showView("newProductForm"); });
     document.getElementById("saveEntry").addEventListener("click", saveEntry);
     document.getElementById("saveProduct").addEventListener("click", saveProduct);
-    document.getElementById("scanQrBtn").addEventListener("click", scanQr);
+    document.getElementById("scanQrBtn").addEventListener("click", startScan);
+    document.getElementById("stopScan").addEventListener("click", stopScan);
     document.getElementById("barcodeBtn").addEventListener("click", toggleBarcodeBox);
     document.getElementById("lookupBtn").addEventListener("click", lookupFromInput);
     document.getElementById("grams").addEventListener("input", updatePreview);
