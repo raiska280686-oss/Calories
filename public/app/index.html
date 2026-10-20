@@ -351,9 +351,11 @@
           protein: parseFloat(document.getElementById("npProtein").value.replace(",", ".")) || 0,
           fat: parseFloat(document.getElementById("npFat").value.replace(",", ".")) || 0,
           carbs: parseFloat(document.getElementById("npCarbs").value.replace(",", ".")) || 0,
+          brand: state.barcode || null,
         }),
       });
       toast("Продукт збережено");
+      state.barcode = null;
       document.getElementById("npName").value = "";
       document.getElementById("npCal").value = "";
       document.getElementById("npProtein").value = "";
@@ -388,25 +390,38 @@
     async function onBarcode(code) {
       toast("Шукаю продукт...");
       const found = await lookupBarcode(code);
-      if (!found) return toast("Продукт не знайдено в базі");
 
       const existing = await api(
         `products?user_id=eq.${userId}&brand=eq.${encodeURIComponent(code)}&select=*&limit=1`
       );
-      let product;
       if (existing.length) {
-        product = existing[0];
-      } else {
-        const rows = await api("products", {
-          method: "POST",
-          body: JSON.stringify({
-            user_id: userId, name: found.name, calories: found.calories || 0,
-            protein: found.protein, fat: found.fat, carbs: found.carbs,
-            brand: code,
-          }),
-        });
-        product = rows[0];
+        showView("pickProduct");
+        pickProduct(existing[0]);
+        toast(existing[0].name);
+        return;
       }
+
+      if (!found) {
+        document.getElementById("npName").value = "";
+        document.getElementById("npCal").value = "";
+        document.getElementById("npProtein").value = "";
+        document.getElementById("npFat").value = "";
+        document.getElementById("npCarbs").value = "";
+        state.barcode = code;
+        showView("newProductForm");
+        toast("Немає в базі — внеси вручну");
+        return;
+      }
+
+      const rows = await api("products", {
+        method: "POST",
+        body: JSON.stringify({
+          user_id: userId, name: found.name, calories: found.calories || 0,
+          protein: found.protein, fat: found.fat, carbs: found.carbs,
+          brand: code,
+        }),
+      });
+      const product = rows[0];
       showView("pickProduct");
       pickProduct(product);
       toast(found.name);
