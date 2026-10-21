@@ -209,7 +209,7 @@ class handler(BaseHTTPRequestHandler):
         if q:
             path = f"{base}&name=ilike.*{urllib.parse.quote(q)}*&select=*&limit=60"
         else:
-            path = f"{base}&select=*&limit=60&order=name.asc"
+            path = f"{base}&select=*&limit=60&order=created_at.asc,name.asc"
         return _supabase("GET", path)
 
     def _op_product_save(self, user_id: int, p: dict):
