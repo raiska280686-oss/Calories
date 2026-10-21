@@ -12,7 +12,7 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
 
-from bot.auth import JWT_TTL, make_jwt, verify_init_data
+from bot.auth import JWT_TTL, decode_jwt_header, make_jwt, verify_init_data
 from bot.config import SUPABASE_KEY, SUPABASE_URL
 
 PROBE_PATH = "profiles?select=user_id&limit=1"
@@ -70,6 +70,7 @@ class handler(BaseHTTPRequestHandler):
             return
 
         user = verified["user"]
+        header = decode_jwt_header(token)
         self._send(
             200,
             {
@@ -78,6 +79,7 @@ class handler(BaseHTTPRequestHandler):
                 "username": user.get("username") or "",
                 "first_name": user.get("first_name") or "",
                 "expires_at": verified["auth_date"] + JWT_TTL,
+                "alg": header.get("alg") or "",
                 "rls_ok": self._probe(token),
             },
         )

@@ -11,6 +11,7 @@ WEBHOOK_BASE_URL = os.getenv("WEBHOOK_BASE_URL", "").rstrip("/")
 SUPABASE_URL = os.getenv("SUPABASE_URL", "").rstrip("/")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
 SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET", "")
+SUPABASE_JWT_KID = os.getenv("SUPABASE_JWT_KID", "")
 SUPABASE_PROJECT_REF = os.getenv("SUPABASE_PROJECT_REF", "")
 
 if not SUPABASE_PROJECT_REF and SUPABASE_URL:
