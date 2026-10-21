@@ -11,5 +11,13 @@
     { "source": "/auth", "destination": "/api/auth" },
     { "source": "/data", "destination": "/api/data" }
   ],
+  "headers": [
+    {
+      "source": "/app",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store, max-age=0, must-revalidate" }
+      ]
+    }
+  ],
   "cleanUrls": true
 }
