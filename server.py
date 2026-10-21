@@ -3,23 +3,26 @@ import logging
 import sys
 
 from aiogram import Bot
+from aiogram import Dispatcher
 from aiohttp import web
 
 from bot.app import create_bot, create_dispatcher
+from bot.auth import webhook_secret_token
 from bot.config import BOT_TOKEN, WEBHOOK_BASE_URL, WEBHOOK_SECRET
 
 logging.basicConfig(level=logging.INFO)
 
 WEBHOOK_PATH = "/webhook"
 WEBHOOK_URL = f"{WEBHOOK_BASE_URL}{WEBHOOK_PATH}"
+SECRET_TOKEN = WEBHOOK_SECRET or webhook_secret_token(BOT_TOKEN)
 
 
 async def handle(request: web.Request) -> web.Response:
     bot: Bot = request.app["bot"]
-    dp = request.app["dp"]
+    dp: Dispatcher = request.app["dp"]
 
     secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
-    if WEBHOOK_SECRET and secret != WEBHOOK_SECRET:
+    if SECRET_TOKEN and secret != SECRET_TOKEN:
         raise web.HTTPForbidden()
 
     from aiogram.types import Update
@@ -33,7 +36,7 @@ async def on_startup(app: web.Application) -> None:
     bot: Bot = app["bot"]
     await bot.set_webhook(
         WEBHOOK_URL,
-        secret_token=WEBHOOK_SECRET or None,
+        secret_token=SECRET_TOKEN or None,
         drop_pending_updates=True,
     )
     logging.info("Webhook set to %s", WEBHOOK_URL)

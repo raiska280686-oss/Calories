@@ -4,7 +4,19 @@ from http.server import BaseHTTPRequestHandler
 from aiogram.types import Update
 
 from bot.app import create_bot, create_dispatcher
-from bot.config import WEBHOOK_SECRET
+from bot.auth import webhook_secret_token
+from bot.config import BOT_TOKEN, WEBHOOK_SECRET
+
+
+def _valid_secrets() -> set:
+    """Прийнятні секрети: заданий у env або детермінований із BOT_TOKEN."""
+    tokens = set()
+    if WEBHOOK_SECRET:
+        tokens.add(WEBHOOK_SECRET)
+    derived = webhook_secret_token(BOT_TOKEN)
+    if derived:
+        tokens.add(derived)
+    return tokens
 
 
 class handler(BaseHTTPRequestHandler):
@@ -13,7 +25,8 @@ class handler(BaseHTTPRequestHandler):
         body = self.rfile.read(length).decode("utf-8")
 
         secret = self.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
-        if WEBHOOK_SECRET and secret != WEBHOOK_SECRET:
+        valid = _valid_secrets()
+        if valid and secret not in valid:
             self.send_response(403)
             self.end_headers()
             return

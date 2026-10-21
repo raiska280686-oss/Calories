@@ -100,6 +100,22 @@ def telegram_uuid(telegram_id: int) -> str:
     return str(uuid.uuid5(TELEGRAM_UUID_NAMESPACE, f"telegram:{int(telegram_id)}"))
 
 
+def webhook_secret_token(bot_token: str = BOT_TOKEN) -> str:
+    """Секретний токен для Telegram webhook.
+
+    Telegram вимагає, щоб значення secret_token збігалося на обох кінцях
+    (при setWebhook і в заголовку X-Telegram-Bot-Api-Secret-Token).
+    Щоб налаштування на Vercel і локально не могли розійтися, токен
+    детерміновано виводиться з BOT_TOKEN.
+    """
+    if not bot_token:
+        return ""
+    digest = hmac.new(
+        b"calories-webhook-secret", bot_token.encode("utf-8"), hashlib.sha256
+    ).hexdigest()
+    return digest[:32]
+
+
 def jwks_kid() -> str:
     """Key ID активного ключа підпису Supabase (для заголовка JWT)."""
     global _kid_cache
