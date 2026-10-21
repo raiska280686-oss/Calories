@@ -258,8 +258,9 @@
       if (!res.ok) {
         const raw = (payload && payload.error) || text || ("http_" + res.status);
         if (res.status === 401) {
-          console.error("401 invalid_init_data", text);
-          throw new Error("Немає доступу: відкрий щоденник кнопкою «Відкрити щоденник» у чаті бота");
+          const why = (payload && payload.reason) || "unknown";
+          console.error("401 invalid_init_data", why, text);
+          throw new Error("Немає доступу (" + why + "): відкрий щоденник кнопкою «Відкрити щоденник» у чаті бота");
         }
         throw new Error(String(raw).slice(0, 200));
       }

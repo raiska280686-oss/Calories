@@ -49,18 +49,22 @@ def parse_init_data(init_data: str) -> dict:
     return {key: value for key, value in pairs}
 
 
-def verify_init_data(init_data: str, bot_token: str = BOT_TOKEN) -> Optional[dict]:
-    """Перевіряє підпис Telegram initData. Повертає дані користувача або None."""
-    if not init_data or not bot_token:
-        return None
+def verify_init_data_reason(
+    init_data: str, bot_token: str = BOT_TOKEN
+) -> Tuple[Optional[dict], str]:
+    """verify_init_data + причина відмови (для діагностики)."""
+    if not init_data:
+        return None, "empty_init_data"
+    if not bot_token:
+        return None, "no_bot_token"
     try:
         params = parse_init_data(init_data)
     except Exception:
-        return None
+        return None, "parse_error"
 
     received_hash = params.pop("hash", "")
     if not received_hash:
-        return None
+        return None, "no_hash"
 
     check_string = "\n".join(f"{key}={params[key]}" for key in sorted(params))
     secret_key = hmac.new(b"WebAppData", bot_token.encode(), hashlib.sha256).digest()
@@ -68,31 +72,40 @@ def verify_init_data(init_data: str, bot_token: str = BOT_TOKEN) -> Optional[dic
         secret_key, check_string.encode("utf-8"), hashlib.sha256
     ).hexdigest()
     if not hmac.compare_digest(expected_hash, received_hash):
-        return None
+        return None, "bad_signature"
 
     try:
         auth_date = int(params.get("auth_date", "0") or "0")
     except ValueError:
         auth_date = 0
     if auth_date and (time.time() - auth_date) > INIT_DATA_MAX_AGE:
-        return None
+        return None, "expired"
 
     raw_user = params.get("user")
     if not raw_user:
-        return None
+        return None, "no_user"
     try:
         user = json.loads(raw_user)
     except ValueError:
-        return None
+        return None, "bad_user_json"
     if not isinstance(user, dict) or not user.get("id"):
-        return None
+        return None, "no_user_id"
 
-    return {
-        "user": user,
-        "user_id": int(user["id"]),
-        "auth_date": auth_date,
-        "params": params,
-    }
+    return (
+        {
+            "user": user,
+            "user_id": int(user["id"]),
+            "auth_date": auth_date,
+            "params": params,
+        },
+        "ok",
+    )
+
+
+def verify_init_data(init_data: str, bot_token: str = BOT_TOKEN) -> Optional[dict]:
+    """Перевіряє підпис Telegram initData. Повертає дані користувача або None."""
+    result, _ = verify_init_data_reason(init_data, bot_token)
+    return result
 
 
 def telegram_uuid(telegram_id: int) -> str:

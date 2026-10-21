@@ -13,7 +13,7 @@ import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler
 
-from bot.auth import verify_app_user_signature, verify_init_data
+from bot.auth import verify_app_user_signature, verify_init_data_reason
 from bot.config import (
     SUPABASE_KEY,
     SUPABASE_SERVICE_ROLE_KEY,
@@ -113,7 +113,8 @@ class handler(BaseHTTPRequestHandler):
             self._send(400, {"error": "bad_json"})
             return
 
-        verified = verify_init_data(payload.get("init_data", ""))
+        raw_init = str(payload.get("init_data", "") or "")
+        verified, reason = verify_init_data_reason(raw_init)
         if verified:
             user_id = verified["user_id"]
         else:
@@ -126,7 +127,17 @@ class handler(BaseHTTPRequestHandler):
                 signed_id = 0
             signature = str(auth.get("sig") or "")
             if not signed_id or not verify_app_user_signature(signed_id, signature):
-                self._send(401, {"error": "invalid_init_data"})
+                self._send(
+                    401,
+                    {
+                        "error": "invalid_init_data",
+                        "reason": reason,
+                        "init_len": len(raw_init),
+                        "has_auth": bool(auth),
+                        "auth_user_id": signed_id or None,
+                        "sig_len": len(signature),
+                    },
+                )
                 return
             user_id = signed_id
 
