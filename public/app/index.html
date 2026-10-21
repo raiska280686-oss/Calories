@@ -248,13 +248,12 @@
       const name=Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8)+'.jpg';
       const fd = new FormData();
       fd.append('file', file, name);
-      const res = await fetch(API+'/storage/v1/object', {
+      const res = await fetch(API+'/storage/v1/object/photos/'+name, {
         method: 'POST',
         headers: { apikey: KEY, Authorization: 'Bearer '+KEY },
         body: fd
       });
       if(res.ok){
-        try{ const j=await res.json(); if(j.Key) return API+'/storage/v1/object/public/'+j.Key; if(j.path) return API+'/storage/v1/object/public/'+j.path; }catch(e){}
         return API+'/storage/v1/object/public/photos/'+name;
       }
       const t=await res.text(); throw new Error(t.slice(0,200));
