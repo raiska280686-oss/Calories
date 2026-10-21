@@ -246,16 +246,10 @@
     async function uploadPhoto(file){
       if(!file) return null;
       const name=Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8)+'.jpg';
-      try {
-        const fd = new FormData();
-        fd.append('file', file);
-        const res = await fetch(API+'/storage/v1/object/photos/'+name, { method:'POST', headers:{apikey:KEY,'Authorization':'Bearer '+KEY}, body: fd });
-        if(res.ok){ return API+'/storage/v1/object/public/photos/'+name; }
-      } catch(e){}
-      try {
-        const res = await fetch(API+'/storage/v1/object/photos/'+name, { method:'POST', headers:{apikey:KEY,'Authorization':'Bearer '+KEY}, body: file });
-        if(res.ok){ return API+'/storage/v1/object/public/photos/'+name; }
-      } catch(e){}
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch(API+'/storage/v1/object/photos/'+name, { method:'POST', headers:{apikey:KEY,'Authorization':'Bearer '+KEY}, body: fd });
+      if(res.ok){ return API+'/storage/v1/object/public/photos/'+name; }
       throw new Error('upload failed');
     }
       const t=await res.text(); throw new Error(t.slice(0,200));
