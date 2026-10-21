@@ -245,17 +245,16 @@
     }
     async function uploadPhoto(file){
       if(!file) return null;
-      const ext=(file.name.split('.').pop()||'jpg').toLowerCase().replace('jpeg','jpg');
-      const name=Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8)+'.'+ext;
+      const name=Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8)+'.jpg';
       const res = await fetch(API+'/storage/v1/object/photos/'+name, {
         method: 'POST',
-        headers: { apikey: KEY, Authorization: 'Bearer '+KEY },
+        headers: { apikey: KEY, Authorization: 'Bearer '+KEY, 'Content-Type': file.type || 'image/jpeg' },
         body: file
       });
       if(res.ok){
         return API+'/storage/v1/object/public/photos/'+name;
       }
-      const t=await res.text(); throw new Error(t.slice(0,160));
+      const t=await res.text(); throw new Error(t.slice(0,200));
     }
 
     const iso = (d) => d.toISOString().slice(0, 10);
