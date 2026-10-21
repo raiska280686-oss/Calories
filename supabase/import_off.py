@@ -139,6 +139,10 @@ def to_row(p: dict) -> dict | None:
     if not consistent(kcal, protein, fat, carbs, alcohol):
         return None
 
+    image = str(p.get("image_front_url") or p.get("image_url") or "").strip()
+    if not image.startswith("http"):
+        image = ""
+
     return {
         "user_id": None,
         "name": name,
@@ -147,6 +151,7 @@ def to_row(p: dict) -> dict | None:
         "fat": fat,
         "carbs": carbs,
         "brand": code,
+        "image_url": image[:500],
     }
 
 
@@ -155,7 +160,8 @@ def fetch_products(country: str, pages: int, sleep: float, sort: str = "", start
         params = {
             "page_size": str(PAGE_SIZE),
             "page": str(page),
-            "fields": "code,product_name,product_name_uk,brands,nutriments",
+            "fields": "code,product_name,product_name_uk,brands,nutriments,"
+                      "image_front_url,image_url",
         }
         if country:
             params["countries_tags_en"] = country
