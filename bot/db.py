@@ -99,3 +99,17 @@ def get_profile(user_id: int) -> Optional[dict]:
         "GET", f"profiles?user_id=eq.{user_id}&select=*&limit=1", user_id=user_id
     )
     return rows[0] if rows else None
+
+
+def get_entries(
+    user_id: int, date_from: str, date_to: Optional[str] = None
+) -> Optional[list]:
+    """Записи щоденника в діапазоні дат (YYYY-MM-DD). None — помилка БД."""
+    path = (
+        f"diary_entries?user_id=eq.{user_id}&entry_date=gte.{date_from}"
+        "&select=entry_date,meal,name,grams,calories,protein,fat,carbs"
+        "&order=entry_date.asc,created_at.asc"
+    )
+    if date_to:
+        path += f"&entry_date=lte.{date_to}"
+    return _request("GET", path, user_id=user_id)
