@@ -245,12 +245,31 @@
     }
     async function uploadPhoto(file){
       if(!file) return null;
-      const name=Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8)+'.jpg';
-      const res = await fetch(API+'/storage/v1/object/photos/'+name, { method:'POST', headers:{apikey:KEY,'Authorization':'Bearer '+KEY}, body: file });
+      const ext=(file.type||'').split('/')[1].replace(/[^a-z0-9]/gi,'').toLowerCase()||'jpg';
+      const name=Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8)+'.'+ext;
+      const res = await fetch(API+'/storage/v1/object/photos/'+name, { method:'POST', headers:{apikey:KEY,'Authorization':'Bearer '+KEY,'Content-Type':file.type||'image/jpeg'}, body: file });
       if(res.ok){ return API+'/storage/v1/object/public/photos/'+name; }
-      throw new Error('upload failed');
+      const t = await res.text(); throw new Error((t||'upload failed').slice(0,200));
     }
-      const t=await res.text(); throw new Error(t.slice(0,200));
+
+    let imageUrlSupported = true;
+    let lastSaveSkippedImage = false;
+    async function apiSave(path, method, body){
+      lastSaveSkippedImage = false;
+      try {
+        return await api(path, { method, body: JSON.stringify(body) });
+      } catch(e) {
+        const msg = String((e && e.message) || e);
+        if (imageUrlSupported && body.image_url && /image_url|42703|PGRST204/i.test(msg)) {
+          imageUrlSupported = false;
+          const retry = { ...body };
+          delete retry.image_url;
+          const res = await api(path, { method, body: JSON.stringify(retry) });
+          lastSaveSkippedImage = true;
+          return res;
+        }
+        throw e;
+      }
     }
 
     const iso = (d) => d.toISOString().slice(0, 10);
@@ -325,8 +344,10 @@
 
     const sheet = document.getElementById("sheet");
     function showView(v) {
-      for (const id of ["viewProduct", "viewDish", "viewNewDish", "pickAmount", "pickDishPortion", "newProductForm", "prodMenu", "dishMenu"])
-        document.getElementById(id).style.display = id === v ? "block" : "none";
+      for (const id of ["viewProduct", "viewDish", "viewNewDish", "pickAmount", "pickDishPortion", "newProductForm"]) {
+        const el = document.getElementById(id);
+        if (el) el.style.display = id === v ? "block" : "none";
+      }
       if (v !== "viewProduct") stopScan();
     }
 
@@ -511,14 +532,16 @@
       const uid = Number(userId);
       let tg=0,tp=0,tf=0,tc=0,tt=0;
       state.dishItems.forEach((it)=>{ const g=it.grams||0; const c=Number(it.calories)||0,pr=Number(it.protein)||0,ft=Number(it.fat)||0,cb=Number(it.carbs)||0; tg+=(c*g/100); tp+=(pr*g/100); tf+=(ft*g/100); tc+=(cb*g/100); tt+=g; });
-      let img=null; const f=document.getElementById("dishPhoto").files[0]; if(f){ try{ img=await uploadPhoto(f); }catch(e){ toast("Помилка завантаження фото"); } }
+      let img=null; const f=document.getElementById("dishPhoto").files[0]; if(f){ try{ img=await uploadPhoto(f); }catch(e){ toast("Помилка завантаження фото: " + (e.message||e)); } }
       const body={ user_id: uid, name, total_grams: tt, calories: tg, protein: tp, fat: tf, carbs: tc };
       if(img) body.image_url = img;
       let d;
-      if(state.editDishId){ await api("dishes?id=eq."+state.editDishId,{ method:"PATCH", body: JSON.stringify(body), headers:{Prefer:'return=representation'} }); await api('dish_items?dish_id=eq.'+state.editDishId,{method:'DELETE'}); d={id:state.editDishId}; }
-      else { const dish = await api("dishes", { method:"POST", body: JSON.stringify(body) }); d = dish[0]; }
-      await api("dish_items", { method:"POST", body: JSON.stringify(state.dishItems.map((it)=>({ dish_id: d.id, name: it.name, grams: it.grams, calories: (Number(it.calories)*it.grams)/100, protein: (Number(it.protein)*it.grams)/100, fat: (Number(it.fat)*it.grams)/100, carbs: (Number(it.carbs)*it.grams)/100 }))) });
-      toast(state.editDishId?"Страву оновлено":"Страву збережено");
+      try {
+        if(state.editDishId){ await apiSave('dishes?id=eq.'+state.editDishId,'PATCH',body); await api('dish_items?dish_id=eq.'+state.editDishId,{method:'DELETE'}); d={id:state.editDishId}; }
+        else { const dish = await apiSave("dishes", "POST", body); d = dish && dish[0]; }
+        await api("dish_items", { method:"POST", body: JSON.stringify(state.dishItems.map((it)=>({ dish_id: d.id, name: it.name, grams: it.grams, calories: (Number(it.calories)*it.grams)/100, protein: (Number(it.protein)*it.grams)/100, fat: (Number(it.fat)*it.grams)/100, carbs: (Number(it.carbs)*it.grams)/100 }))) });
+      } catch(e) { toast("Помилка збереження: " + (e.message||e)); return; }
+      toast(lastSaveSkippedImage ? "Страву збережено без фото: у БД немає колонки image_url" : (state.editDishId?"Страву оновлено":"Страву збережено"));
       document.getElementById("dishName").value="";
       var dpf=document.getElementById("dishPhoto"); if(dpf) dpf.value=""; var dpv=document.getElementById("dishPhotoPreview"); if(dpv){ dpv.style.display='none'; dpv.innerHTML=''; }
       state.dishItems=[]; delete state.editDishId; renderDishItems();
@@ -585,12 +608,14 @@
       const uid = Number(userId);
       let img = null;
       const f = document.getElementById("npPhoto").files[0];
-      if(f){ try{ img = await uploadPhoto(f); }catch(e){ toast("Помилка завантаження фото"); } }
+      if(f){ try{ img = await uploadPhoto(f); }catch(e){ toast("Помилка завантаження фото: " + (e.message||e)); } }
       const body = { user_id: uid, name, calories: cal, protein: parseFloat(document.getElementById("npProtein").value.replace(",", "."))||0, fat: parseFloat(document.getElementById("npFat").value.replace(",", "."))||0, carbs: parseFloat(document.getElementById("npCarbs").value.replace(",", "."))||0, brand: state.barcode||null };
       if(img) body.image_url = img;
-      if(state.editProductId){ await api('products?id=eq.'+state.editProductId,{method:'PATCH',body:JSON.stringify(body),headers:{Prefer:'return=representation'}}); }
-      else { await api("products", { method:"POST", body: JSON.stringify(body) }); }
-      toast(state.editProductId?"Продукт оновлено":"Продукт збережено"); state.barcode=null; delete state.editProductId; document.getElementById("npBarcode").textContent="";
+      try {
+        if(state.editProductId){ await apiSave('products?id=eq.'+state.editProductId,'PATCH',body); }
+        else { await apiSave("products", "POST", body); }
+      } catch(e) { toast("Помилка збереження: " + (e.message||e)); return; }
+      toast(lastSaveSkippedImage ? "Продукт збережено без фото: у БД немає колонки image_url" : (state.editProductId?"Продукт оновлено":"Продукт збережено")); state.barcode=null; delete state.editProductId; document.getElementById("npBarcode").textContent="";
       document.getElementById("npName").value=""; document.getElementById("npCal").value=""; document.getElementById("npProtein").value=""; document.getElementById("npFat").value=""; document.getElementById("npCarbs").value="";
       var npf=document.getElementById("npPhoto"); if(npf) npf.value=""; var pv=document.getElementById("npPhotoPreview"); if(pv){ pv.style.display='none'; pv.innerHTML=''; }
       var seg2=document.getElementById('tabsSeg'); if(seg2)seg2.style.display='flex';
