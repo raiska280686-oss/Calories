@@ -801,8 +801,11 @@
     document.getElementById("todayBtn").addEventListener("click", ()=>{ day=new Date(); loadDay(); });
 
     (async ()=>{
-      try { await initAuth(); }
-      catch(e){ console.error("auth error", e); }
+      try {
+        const auth = await initAuth();
+        if (auth && auth.rls_ok === false) toast("Немає доступу до бази");
+      }
+      catch(e){ console.error("auth error", e); toast("Помилка авторизації"); }
       const u = tg?.initDataUnsafe?.user;
       let uid = authUserId || (u?.id ? Number(u.id) : null);
       if (!uid || Number.isNaN(uid)) {
