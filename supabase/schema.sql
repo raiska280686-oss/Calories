@@ -73,47 +73,73 @@ alter table public.diary_entries enable row level security;
 alter table public.dishes enable row level security;
 alter table public.dish_items enable row level security;
 
-create policy "profiles_read"
-  on public.profiles for select to anon, authenticated using (true);
-create policy "profiles_write"
-  on public.profiles for insert to anon, authenticated with check (true);
-create policy "profiles_update"
-  on public.profiles for update to anon, authenticated using (true) with check (true);
-create policy "profiles_delete"
-  on public.profiles for delete to anon, authenticated using (true);
+-- Безпека: доступ лише до власних даних (telegram_id береться з JWT,
+-- який видає ендпоїнт /auth після перевірки Telegram initData).
+create or replace function public.tg_uid() returns bigint
+language sql stable
+as $$
+  select nullif(
+    coalesce(
+      (nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'telegram_id'),
+      ''
+    ), ''
+  )::bigint;
+$$;
 
-create policy "products_read"
-  on public.products for select to anon, authenticated using (true);
-create policy "products_write"
-  on public.products for insert to anon, authenticated with check (true);
-create policy "products_update"
-  on public.products for update to anon, authenticated using (true) with check (true);
-create policy "products_delete"
-  on public.products for delete to anon, authenticated using (true);
+create or replace function public.owns_dish(p_dish_id bigint) returns boolean
+language sql stable security definer set search_path = public
+as $$
+  select exists (
+    select 1 from public.dishes d
+    where d.id = p_dish_id and d.user_id = public.tg_uid()
+  );
+$$;
 
-create policy "diary_read"
-  on public.diary_entries for select to anon, authenticated using (true);
-create policy "diary_write"
-  on public.diary_entries for insert to anon, authenticated with check (true);
-create policy "diary_update"
-  on public.diary_entries for update to anon, authenticated using (true) with check (true);
-create policy "diary_delete"
-  on public.diary_entries for delete to anon, authenticated using (true);
+create policy "profiles_select_own"
+  on public.profiles for select to authenticated using (user_id = public.tg_uid());
+create policy "profiles_insert_own"
+  on public.profiles for insert to authenticated with check (user_id = public.tg_uid());
+create policy "profiles_update_own"
+  on public.profiles for update to authenticated using (user_id = public.tg_uid()) with check (user_id = public.tg_uid());
+create policy "profiles_delete_own"
+  on public.profiles for delete to authenticated using (user_id = public.tg_uid());
 
-create policy "dishes_read"
-  on public.dishes for select to anon, authenticated using (true);
-create policy "dishes_write"
-  on public.dishes for insert to anon, authenticated with check (true);
-create policy "dishes_update"
-  on public.dishes for update to anon, authenticated using (true) with check (true);
-create policy "dishes_delete"
-  on public.dishes for delete to anon, authenticated using (true);
+create policy "products_select_own"
+  on public.products for select to authenticated using (user_id is null or user_id = public.tg_uid());
+create policy "products_insert_own"
+  on public.products for insert to authenticated with check (user_id = public.tg_uid());
+create policy "products_update_own"
+  on public.products for update to authenticated using (user_id = public.tg_uid()) with check (user_id = public.tg_uid());
+create policy "products_delete_own"
+  on public.products for delete to authenticated using (user_id = public.tg_uid());
+create policy "products_select_public"
+  on public.products for select to anon using (user_id is null);
 
-create policy "dish_items_read"
-  on public.dish_items for select to anon, authenticated using (true);
-create policy "dish_items_write"
-  on public.dish_items for insert to anon, authenticated with check (true);
-create policy "dish_items_update"
-  on public.dish_items for update to anon, authenticated using (true) with check (true);
-create policy "dish_items_delete"
-  on public.dish_items for delete to anon, authenticated using (true);
+create policy "diary_select_own"
+  on public.diary_entries for select to authenticated using (user_id = public.tg_uid());
+create policy "diary_insert_own"
+  on public.diary_entries for insert to authenticated with check (user_id = public.tg_uid());
+create policy "diary_update_own"
+  on public.diary_entries for update to authenticated using (user_id = public.tg_uid()) with check (user_id = public.tg_uid());
+create policy "diary_delete_own"
+  on public.diary_entries for delete to authenticated using (user_id = public.tg_uid());
+
+create policy "dishes_select_own"
+  on public.dishes for select to authenticated using (user_id is null or user_id = public.tg_uid());
+create policy "dishes_insert_own"
+  on public.dishes for insert to authenticated with check (user_id = public.tg_uid());
+create policy "dishes_update_own"
+  on public.dishes for update to authenticated using (user_id = public.tg_uid()) with check (user_id = public.tg_uid());
+create policy "dishes_delete_own"
+  on public.dishes for delete to authenticated using (user_id = public.tg_uid());
+create policy "dishes_select_public"
+  on public.dishes for select to anon using (user_id is null);
+
+create policy "dish_items_select_own"
+  on public.dish_items for select to authenticated using (public.owns_dish(dish_id));
+create policy "dish_items_insert_own"
+  on public.dish_items for insert to authenticated with check (public.owns_dish(dish_id));
+create policy "dish_items_update_own"
+  on public.dish_items for update to authenticated using (public.owns_dish(dish_id)) with check (public.owns_dish(dish_id));
+create policy "dish_items_delete_own"
+  on public.dish_items for delete to authenticated using (public.owns_dish(dish_id));

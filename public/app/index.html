@@ -226,6 +226,9 @@
   <script>
     const API = "https://mtwqibjdfcuxqmbigksf.supabase.co";
     const KEY = "sb_publishable_V3Jv0gycxZ3oEEu-bWYrMg_SE_ERS7m";
+    const AUTH_URL = String(window.CALORIES_AUTH_URL || (location.origin + "/auth")).replace(/\/+$/, "");
+    let authToken = "";
+    let authUserId = null;
     const MEALS = [
       { id: "breakfast", label: "Сніданок" },
       { id: "lunch", label: "Обід" },
@@ -240,66 +243,118 @@
     const tg = window.Telegram?.WebApp;
     if (tg) { tg.ready(); tg.expand(); }
 
-    function api(path, opts = {}) {
-      return fetch(API + "/rest/v1/" + path, {
-        ...opts,
-        headers: {
-          apikey: KEY,
-          Authorization: "Bearer " + KEY,
-          "Content-Type": "application/json",
-          Prefer: opts.prefer || "return=representation",
-          ...(opts.headers || {}),
-        },
-      }).then(async (r) => {
-        if (!r.ok) throw new Error(await r.text());
-        const text = await r.text();
-        return text ? JSON.parse(text) : null;
-      });
+    function supabaseHeaders(extra) {
+      return Object.assign({
+        apikey: KEY,
+        Authorization: "Bearer " + (authToken || KEY),
+        "Content-Type": "application/json",
+      }, extra || {});
     }
-    // Фото зберігаються в bucket photos під детермінованим ім\'ям: <kind>-<id>.jpg
-    // (працює без колонки image_url у БД; якщо колонка є — посилання пишемо й туди)
+
+    async function initAuth() {
+      const initData = (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) || "";
+      if (!initData) return null;
+      const res = await fetch(AUTH_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ init_data: initData }),
+      });
+      if (!res.ok) throw new Error("auth_http_" + res.status);
+      const data = await res.json();
+      if (!data || !data.token) throw new Error("auth_failed");
+      authToken = data.token;
+      authUserId = data.user_id || null;
+      return data;
+    }
+
+    async function api(path, opts = {}) {
+      const headers = Object.assign(supabaseHeaders(), {
+        Prefer: opts.prefer || "return=representation",
+      }, opts.headers || {});
+      const res = await fetch(API + "/rest/v1/" + path, Object.assign({}, opts, { headers }));
+      if (res.status === 401 && authToken && !opts.retried) {
+        try { await initAuth(); } catch (e) { /* пробуємо ще раз нижче */ }
+        if (authToken) return api(path, Object.assign({}, opts, { retried: true }));
+      }
+      if (!res.ok) throw new Error((await res.text()).slice(0, 300));
+      const text = await res.text();
+      return text ? JSON.parse(text) : null;
+    }
+
+    // Фото лежать у bucket photos під префіксом власника: u<telegram_id>/<kind>-<id>.jpg
+    // (RLS у Supabase дозволяє бачити/завантажувати лише власні об'єкти)
     const PHOTO_KIND = { products: "product", dishes: "dish" };
-    let photoKeys = new Set();
+    let photoMap = new Map();
     let imageUrlSupported = null;
 
+    function photoName(kind, id) { return "u" + userId + "/" + PHOTO_KIND[kind] + "-" + id + ".jpg"; }
+    function photoPublicUrl(name) { return API + "/storage/v1/object/public/photos/" + name; }
+
+    async function signPhotos(names) {
+      if (!names || !names.length || !authToken) return null;
+      try {
+        const res = await fetch(API + "/storage/v1/object/sign/photos", {
+          method: "POST",
+          headers: supabaseHeaders(),
+          body: JSON.stringify({ paths: names, expiresIn: 3600 }),
+        });
+        if (!res.ok) return null;
+        const rows = await res.json();
+        if (!Array.isArray(rows)) return null;
+        const map = new Map();
+        rows.forEach((r) => {
+          if (!r || r.error || !r.path) return;
+          const url = r.signedUrl || (r.signedURL ? API + "/storage/v1" + r.signedURL : "");
+          if (url) map.set(r.path, url);
+        });
+        return map.size ? map : null;
+      } catch (e) { return null; }
+    }
+
     async function loadPhotoKeys() {
+      if (!userId) return;
+      const prefix = "u" + userId + "/";
       try {
         const res = await fetch(API + "/storage/v1/object/list/photos", {
           method: "POST",
-          headers: { apikey: KEY, Authorization: "Bearer " + KEY, "Content-Type": "application/json" },
-          body: JSON.stringify({ prefix: "", limit: 1000 }),
+          headers: supabaseHeaders(),
+          body: JSON.stringify({ prefix: prefix, limit: 1000 }),
         });
         if (!res.ok) return;
         const rows = await res.json();
-        photoKeys = new Set((rows || []).map((o) => o.name));
+        const names = (rows || [])
+          .map((o) => o && o.name)
+          .filter(Boolean)
+          .map((n) => (n.indexOf(prefix) === 0 ? n : prefix + n));
+        const map = new Map();
+        names.forEach((n) => map.set(n, photoPublicUrl(n)));
+        const signed = await signPhotos(names);
+        if (signed) signed.forEach((url, name) => map.set(name, url));
+        photoMap = map;
       } catch (e) { /* bucket недоступний — просто без фото */ }
     }
 
-    function photoName(kind, id) { return PHOTO_KIND[kind] + "-" + id + ".jpg"; }
-    function photoPublicUrl(name) { return API + "/storage/v1/object/public/photos/" + name; }
-
     function photoFor(kind, id, imageUrl) {
       if (imageUrl) return imageUrl;
-      const name = photoName(kind, id);
-      return photoKeys.has(name) ? photoPublicUrl(name) : "";
+      return photoMap.get(photoName(kind, id)) || "";
     }
 
     async function uploadPhoto(file, kind, id) {
-      if (!file || !id) return null;
+      if (!file || !id || !userId) return null;
       const name = photoName(kind, id);
       const res = await fetch(API + "/storage/v1/object/photos/" + name, {
         method: "POST",
-        headers: {
-          apikey: KEY,
-          Authorization: "Bearer " + KEY,
+        headers: supabaseHeaders({
           "Content-Type": file.type || "image/jpeg",
           "x-upsert": "true",
-        },
+        }),
         body: file,
       });
       if (res.ok) {
-        photoKeys.add(name);
-        return photoPublicUrl(name);
+        const signed = await signPhotos([name]);
+        const url = (signed && signed.get(name)) || photoPublicUrl(name);
+        photoMap.set(name, url);
+        return url;
       }
       const t = await res.text(); throw new Error((t || "upload failed").slice(0, 200));
     }
@@ -746,8 +801,10 @@
     document.getElementById("todayBtn").addEventListener("click", ()=>{ day=new Date(); loadDay(); });
 
     (async ()=>{
+      try { await initAuth(); }
+      catch(e){ console.error("auth error", e); }
       const u = tg?.initDataUnsafe?.user;
-      let uid = u?.id ? Number(u.id) : null;
+      let uid = authUserId || (u?.id ? Number(u.id) : null);
       if (!uid || Number.isNaN(uid)) {
         const q = new URLSearchParams(location.search).get("user_id");
         if (q && q !== "null" && /^\d+$/.test(q)) uid = Number(q);
