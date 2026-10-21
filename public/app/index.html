@@ -663,30 +663,22 @@
       if (html5Qr) { try { await html5Qr.stop(); await html5Qr.clear(); } catch(e){} html5Qr=null; }
     }
 
-    async function lookupBarcode(code) {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 15000);
-      try {
-        const r = await fetch(`https://calories-raisa8.vercel.app/off?code=${encodeURIComponent(code)}`, { signal: ctrl.signal });
-        const d = await r.json();
-        if (!d || !d.found) return null;
-        return { name: d.name, calories: d.calories || 0, protein: d.protein || 0, fat: d.fat || 0, carbs: d.carbs || 0 };
-      } catch(e) { toast("Помилка пошуку"); return null; } finally { clearTimeout(timer); }
-    }
-
     async function onBarcode(code) {
       toast("Шукаю продукт...");
       try {
-      const found = await lookupBarcode(code);
-      const existing = await rpc("product_by_barcode", { code: code });
-      if (existing) { showView("viewProduct"); pickProduct(existing); toast(existing.name); return; }
-      if (!found) {
-        document.getElementById("npName").value=""; document.getElementById("npCal").value=""; document.getElementById("npProtein").value=""; document.getElementById("npFat").value=""; document.getElementById("npCarbs").value="";
-        state.barcode = code; document.getElementById("npBarcode").textContent = "Штрихкод: " + code;
-        setTab("prod"); showView("newProductForm"); toast("Немає в базі — внеси вручну"); return;
+      const res = await rpc("barcode_lookup", { code: code });
+      if (res && res.found && res.product) {
+        const p = res.product;
+        if (res.image) photoMap.set(photoName("products", p.id), res.image);
+        await loadPhotoKeys();
+        setTab("prod"); showView("viewProduct"); pickProduct(p);
+        loadProducts(document.getElementById("search").value || "");
+        toast(p.name);
+        return;
       }
-      const product = await rpc("product_save", { name: found.name, calories: found.calories||0, protein: found.protein||0, fat: found.fat||0, carbs: found.carbs||0, brand: code });
-      setTab("prod"); showView("viewProduct"); pickProduct(product); toast(found.name);
+      document.getElementById("npName").value=""; document.getElementById("npCal").value=""; document.getElementById("npProtein").value=""; document.getElementById("npFat").value=""; document.getElementById("npCarbs").value="";
+      state.barcode = code; document.getElementById("npBarcode").textContent = "Штрихкод: " + code;
+      setTab("prod"); showView("newProductForm"); toast("Немає в базі — внеси вручну");
     } catch(e) { toast("Помилка: " + e.message); }
     }
 

@@ -19,6 +19,7 @@ from bot.config import (
     SUPABASE_SERVICE_ROLE_KEY,
     SUPABASE_URL,
 )
+from bot.off import download_image, lookup_barcode
 
 PHOTO_KIND = {"products": "product", "dishes": "dish"}
 MEALS = {"breakfast", "lunch", "dinner", "snack"}
@@ -246,6 +247,66 @@ class handler(BaseHTTPRequestHandler):
             "&select=*&limit=1",
         )
         return rows[0] if rows else None
+
+    def _op_barcode_lookup(self, user_id: int, p: dict):
+        """Штрихкод → продукт: спершу кеш у products, потім Open Food Facts."""
+        code = "".join(ch for ch in str(p.get("code", "")) if ch.isdigit())[:14]
+        if len(code) < 6:
+            raise RuntimeError("bad_code")
+
+        rows = _supabase(
+            "GET",
+            f"products?user_id=eq.{user_id}&brand=eq.{urllib.parse.quote(code)}"
+            "&select=*&limit=1",
+        )
+        if rows:
+            return {"found": True, "cached": True, "product": rows[0]}
+
+        found = lookup_barcode(code)
+        if not found:
+            return {"found": False, "code": code}
+
+        body = {
+            "user_id": user_id,
+            "name": found["display_name"][:200],
+            "calories": found["calories"],
+            "protein": found["protein"],
+            "fat": found["fat"],
+            "carbs": found["carbs"],
+            "brand": code,
+        }
+        saved = _supabase("POST", "products", body=body, prefer="return=representation")
+        product = saved[0] if saved else {}
+
+        image = ""
+        product_id = _int(product.get("id")) if product else 0
+        if found.get("image_url") and product_id:
+            image = self._cache_image(user_id, product_id, found["image_url"])
+        return {
+            "found": True,
+            "cached": False,
+            "source": "openfoodfacts",
+            "product": product,
+            "image": image,
+        }
+
+    def _cache_image(self, user_id: int, product_id: int, image_url: str) -> str:
+        """Кладе картинку продукту в bucket photos (u<id>/product-<id>.jpg)."""
+        downloaded = download_image(image_url)
+        if not downloaded:
+            return ""
+        raw, ctype = downloaded
+        name = f"u{user_id}/product-{product_id}.jpg"
+        try:
+            _storage(
+                "POST",
+                f"object/photos/{name}",
+                raw_body=raw,
+                headers_extra={"Content-Type": ctype, "x-upsert": "true"},
+            )
+        except RuntimeError:
+            return ""
+        return f"{SUPABASE_URL}/storage/v1/object/public/photos/{name}"
 
     def _op_product_delete(self, user_id: int, p: dict):
         product_id = _int(p.get("id"))
