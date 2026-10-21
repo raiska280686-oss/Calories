@@ -9,6 +9,7 @@
 """
 
 import argparse
+import html
 import json
 import sys
 import time
@@ -74,7 +75,7 @@ def existing_codes() -> set:
 
 
 def clean_name(raw) -> str:
-    return " ".join(str(raw or "").split())[:200]
+    return html.unescape(" ".join(str(raw or "").split()))[:200]
 
 
 def consistent(calories: float, protein: float, fat: float, carbs: float,
@@ -170,7 +171,7 @@ def fetch_products(country: str, pages: int, sleep: float, sort: str = "", start
 
 
 def recheck_global(dry_run: bool = False) -> int:
-    """Видаляє глобальні продукти з непослідовною калорійністю (ккал vs Б/Ж/В)."""
+    """Чистить глобальні продукти: непослідовна калорійність + HTML-сутності в назвах."""
     rows, offset = [], 0
     while True:
         page = _supabase(
@@ -190,12 +191,27 @@ def recheck_global(dry_run: bool = False) -> int:
             f"  · {r['name']} — {r['calories']} ккал, "
             f"Б/Ж/В {r['protein']}/{r['fat']}/{r['carbs']}"
         )
-    if dry_run:
-        return len(bad)
-    for i in range(0, len(bad), 500):
-        chunk = ",".join(str(r["id"]) for r in bad[i:i + 500])
-        _supabase("DELETE", f"products?id=in.({chunk})&user_id=is.null")
-        print(f"  видалено {min(500, len(bad) - i)}")
+    if bad and not dry_run:
+        for i in range(0, len(bad), 500):
+            chunk = ",".join(str(r["id"]) for r in bad[i:i + 500])
+            _supabase("DELETE", f"products?id=in.({chunk})&user_id=is.null")
+            print(f"  видалено {min(500, len(bad) - i)}")
+
+    bad_ids = {r["id"] for r in bad}
+    fixed = 0
+    for r in rows:
+        if r["id"] in bad_ids:
+            continue
+        cleaned = html.unescape(" ".join(r["name"].split()))[:200]
+        if cleaned == r["name"]:
+            continue
+        fixed += 1
+        if not dry_run:
+            _supabase(
+                "PATCH", f"products?id=eq.{r['id']}&user_id=is.null",
+                body={"name": cleaned}, headers={"Prefer": "return=minimal"},
+            )
+    print(f"Назв з HTML-сутностями: {fixed}{' (dry-run)' if dry_run else ''}")
     return len(bad)
 
 
@@ -210,7 +226,7 @@ def main() -> int:
     ap.add_argument("--batch", type=int, default=200, help="розмір пакета в Supabase")
     ap.add_argument("--dry-run", action="store_true", help="не писати в БД, лише показати")
     ap.add_argument("--recheck", action="store_true",
-                    help="перевірити наявні глобальні продукти й видалити непослідовні")
+                    help="почистити наявні глобальні продукти (калорійність, HTML у назвах)")
     args = ap.parse_args()
 
     if not SUPABASE_SERVICE_ROLE_KEY:
