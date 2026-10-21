@@ -256,31 +256,63 @@
         return text ? JSON.parse(text) : null;
       });
     }
-    async function uploadPhoto(file){
-      if(!file) return null;
-      const ext=(file.type||'').split('/')[1].replace(/[^a-z0-9]/gi,'').toLowerCase()||'jpg';
-      const name=Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8)+'.'+ext;
-      const res = await fetch(API+'/storage/v1/object/photos/'+name, { method:'POST', headers:{apikey:KEY,'Authorization':'Bearer '+KEY,'Content-Type':file.type||'image/jpeg'}, body: file });
-      if(res.ok){ return API+'/storage/v1/object/public/photos/'+name; }
-      const t = await res.text(); throw new Error((t||'upload failed').slice(0,200));
+    // Фото зберігаються в bucket photos під детермінованим ім\'ям: <kind>-<id>.jpg
+    // (працює без колонки image_url у БД; якщо колонка є — посилання пишемо й туди)
+    const PHOTO_KIND = { products: "product", dishes: "dish" };
+    let photoKeys = new Set();
+    let imageUrlSupported = null;
+
+    async function loadPhotoKeys() {
+      try {
+        const res = await fetch(API + "/storage/v1/object/list/photos", {
+          method: "POST",
+          headers: { apikey: KEY, Authorization: "Bearer " + KEY, "Content-Type": "application/json" },
+          body: JSON.stringify({ prefix: "", limit: 1000 }),
+        });
+        if (!res.ok) return;
+        const rows = await res.json();
+        photoKeys = new Set((rows || []).map((o) => o.name));
+      } catch (e) { /* bucket недоступний — просто без фото */ }
     }
 
-    let imageUrlSupported = true;
-    let lastSaveSkippedImage = false;
-    async function apiSave(path, method, body){
-      lastSaveSkippedImage = false;
+    function photoName(kind, id) { return PHOTO_KIND[kind] + "-" + id + ".jpg"; }
+    function photoPublicUrl(name) { return API + "/storage/v1/object/public/photos/" + name; }
+
+    function photoFor(kind, id, imageUrl) {
+      if (imageUrl) return imageUrl;
+      const name = photoName(kind, id);
+      return photoKeys.has(name) ? photoPublicUrl(name) : "";
+    }
+
+    async function uploadPhoto(file, kind, id) {
+      if (!file || !id) return null;
+      const name = photoName(kind, id);
+      const res = await fetch(API + "/storage/v1/object/photos/" + name, {
+        method: "POST",
+        headers: {
+          apikey: KEY,
+          Authorization: "Bearer " + KEY,
+          "Content-Type": file.type || "image/jpeg",
+          "x-upsert": "true",
+        },
+        body: file,
+      });
+      if (res.ok) {
+        photoKeys.add(name);
+        return photoPublicUrl(name);
+      }
+      const t = await res.text(); throw new Error((t || "upload failed").slice(0, 200));
+    }
+
+    async function patchImageUrl(table, id, url) {
+      if (imageUrlSupported === false) return false;
       try {
-        return await api(path, { method, body: JSON.stringify(body) });
-      } catch(e) {
+        await api(table + "?id=eq." + id, { method: "PATCH", body: JSON.stringify({ image_url: url }) });
+        imageUrlSupported = true;
+        return true;
+      } catch (e) {
         const msg = String((e && e.message) || e);
-        if (imageUrlSupported && body.image_url && /image_url|42703|PGRST204/i.test(msg)) {
-          imageUrlSupported = false;
-          const retry = { ...body };
-          delete retry.image_url;
-          const res = await api(path, { method, body: JSON.stringify(retry) });
-          lastSaveSkippedImage = true;
-          return res;
-        }
+        if (/image_url|42703|PGRST204/i.test(msg)) { imageUrlSupported = false; return false; }
         throw e;
       }
     }
@@ -315,21 +347,9 @@
       document.getElementById("norm").textContent = norm ? `Норма: ${r0(norm)} ккал` : "Норма: —";
     }
 
-    let prodImages = {};
-
-    async function loadProductImages() {
-      try {
-        const rows = await api(`products?select=id,image_url&limit=500`);
-        prodImages = {};
-        (rows || []).forEach((p) => { if (p.image_url) prodImages[p.id] = p.image_url; });
-      } catch (e) {
-        prodImages = {};
-      }
-    }
-
     async function loadDay() {
       document.getElementById("dateLabel").textContent = day.toLocaleDateString("uk-UA", { day: "numeric", month: "long", weekday: "short" });
-      await loadProductImages();
+      await loadPhotoKeys();
       const entries = await api(`diary_entries?user_id=eq.${userId}&entry_date=eq.${iso(day)}&select=*&order=created_at.asc`);
       render(entries);
     }
@@ -362,7 +382,7 @@
           ${list.map((e) => `
             <div class="entry">
               <div style="display:flex;align-items:center;gap:10px;min-width:0">
-                ${thumb(e.product_id ? prodImages[e.product_id] : "", true)}
+                ${thumb(e.product_id ? photoFor("products", e.product_id) : "", true)}
                 <div style="min-width:0">
                   <div>${esc(e.name)}</div>
                   <div class="muted">${r0(e.grams)} г · Б${f1(e.protein)} Ж${f1(e.fat)} В${f1(e.carbs)}</div>
@@ -434,8 +454,9 @@
         ? `products?or=(user_id.is.null,user_id.eq.${uid})&name=ilike.*${encodeURIComponent(q.trim())}*&select=*&limit=60`
         : `products?or=(user_id.is.null,user_id.eq.${uid})&select=*&limit=60&order=name.asc`;
       const rows = await api(query);
+      await loadPhotoKeys();
       const box = document.getElementById("results");
-      box.innerHTML = rows.map((p) => `<div class="result" data-id="${p.id}"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div style="display:flex;align-items:center;gap:10px;min-width:0">${thumb(p.image_url)}<div style="min-width:0"><div>${esc(p.name)}</div><small>${r0(p.calories)} ккал · Б${p.protein} Ж${p.fat} В${p.carbs} /100 г</small></div></div><div style="display:flex;gap:8px"><button data-edit-p="${p.id}" style="border:none;background:none;color:var(--text)">✎</button><button data-del-p="${p.id}" style="border:none;background:none;color:#e35">✕</button></div></div></div>`).join("") || `<div class="close">Нічого не знайдено</div>`;
+      box.innerHTML = rows.map((p) => `<div class="result" data-id="${p.id}"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div style="display:flex;align-items:center;gap:10px;min-width:0">${thumb(photoFor("products", p.id, p.image_url))}<div style="min-width:0"><div>${esc(p.name)}</div><small>${r0(p.calories)} ккал · Б${p.protein} Ж${p.fat} В${p.carbs} /100 г</small></div></div><div style="display:flex;gap:8px"><button data-edit-p="${p.id}" style="border:none;background:none;color:var(--text)">✎</button><button data-del-p="${p.id}" style="border:none;background:none;color:#e35">✕</button></div></div></div>`).join("") || `<div class="close">Нічого не знайдено</div>`;
       box.querySelectorAll("[data-id]").forEach((el) => el.addEventListener("click", (e) => { if(e.target.closest('[data-edit-p]')||e.target.closest('[data-del-p]')||e.target.closest('[data-photo]')) return; pickProduct(rows.find((p) => p.id == el.dataset.id)); }));
       box.querySelectorAll("[data-edit-p]").forEach((el) => el.addEventListener("click", (e) => { e.stopPropagation(); editProduct(rows.find((p)=>p.id==el.dataset.editP)); }));
       box.querySelectorAll("[data-del-p]").forEach((el) => el.addEventListener("click", async (e) => { e.stopPropagation(); if(!confirm('Видалити продукт?')) return; await api('products?id=eq.'+el.dataset.delP,{method:'DELETE'}); loadProducts(document.getElementById('search').value||''); toast('Видалено'); }));
@@ -450,7 +471,8 @@
       document.getElementById("npCarbs").value = p.carbs ?? "";
       state.editProductId = p.id;
       var npf=document.getElementById("npPhoto"); if(npf) npf.value="";
-      var pv=document.getElementById("npPhotoPreview"); if(pv){ pv.innerHTML=''; if(p.image_url){ pv.style.display='block'; var img=document.createElement('img'); img.src=p.image_url+'?t='+Date.now(); img.style.width='100%'; img.style.height='100%'; img.style.objectFit='cover'; img.style.cursor='pointer'; img.setAttribute('data-photo', p.image_url); img.onerror=function(){ this.remove(); pv.style.display='none'; }; pv.appendChild(img); } else { pv.style.display='none'; } }
+      var pu=photoFor("products", p.id, p.image_url);
+      var pv=document.getElementById("npPhotoPreview"); if(pv){ pv.innerHTML=''; if(pu){ pv.style.display='block'; var img=document.createElement('img'); img.src=pu+'?t='+Date.now(); img.style.width='100%'; img.style.height='100%'; img.style.objectFit='cover'; img.style.cursor='pointer'; img.setAttribute('data-photo', pu); img.onerror=function(){ this.remove(); pv.style.display='none'; }; pv.appendChild(img); } else { pv.style.display='none'; } }
       var seg=document.getElementById('tabsSeg'); if(seg)seg.style.display='none';
       document.getElementById("tabProd").classList.add("active"); document.getElementById("tabDish").classList.remove("active"); document.getElementById("tabNewDish").classList.remove("active");
       for(var i=0;i<['viewProduct','viewDish','viewNewDish','pickAmount','pickDishPortion','newProductForm'].length;i++){var idv=['viewProduct','viewDish','viewNewDish','pickAmount','pickDishPortion','newProductForm'][i];document.getElementById(idv).style.display=idv==='newProductForm'?'block':'none';}
@@ -493,8 +515,9 @@
       let path = `dishes?or=(user_id.is.null,user_id.eq.${uid})&select=*&limit=60&order=created_at.desc`;
       if (q.trim()) path = `dishes?or=(user_id.is.null,user_id.eq.${uid})&name=ilike.*${encodeURIComponent(q.trim())}*&select=*&limit=60`;
       const rows = await api(path);
+      await loadPhotoKeys();
       const box = document.getElementById("dishResults");
-      box.innerHTML = rows.map((d) => `<div class="result" data-did="${d.id}"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div style="display:flex;align-items:center;gap:10px;min-width:0">${thumb(d.image_url)}<div style="min-width:0"><div>${esc(d.name)}</div><small>${r0(d.calories)} ккал на ${r0(d.total_grams)} г · Б${f1(d.protein)} Ж${f1(d.fat)} В${f1(d.carbs)}</small></div></div><div style="display:flex;gap:8px"><button data-edit-d="${d.id}" style="border:none;background:none;color:var(--text)">✎</button><button data-del-d="${d.id}" style="border:none;background:none;color:#e35">✕</button></div></div></div>`).join("") || `<div class="close">Немає страв</div>`;
+      box.innerHTML = rows.map((d) => `<div class="result" data-did="${d.id}"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div style="display:flex;align-items:center;gap:10px;min-width:0">${thumb(photoFor("dishes", d.id, d.image_url))}<div style="min-width:0"><div>${esc(d.name)}</div><small>${r0(d.calories)} ккал на ${r0(d.total_grams)} г · Б${f1(d.protein)} Ж${f1(d.fat)} В${f1(d.carbs)}</small></div></div><div style="display:flex;gap:8px"><button data-edit-d="${d.id}" style="border:none;background:none;color:var(--text)">✎</button><button data-del-d="${d.id}" style="border:none;background:none;color:#e35">✕</button></div></div></div>`).join("") || `<div class="close">Немає страв</div>`;
       box.querySelectorAll("[data-did]").forEach((el) => el.addEventListener("click", (e) => { if(e.target.closest('[data-edit-d]')||e.target.closest('[data-del-d]')||e.target.closest('[data-photo]')) return; pickDish(rows.find((x) => x.id == el.dataset.did)); }));
       box.querySelectorAll("[data-edit-d]").forEach((el) => el.addEventListener("click", async (e) => { e.stopPropagation(); await editDish(rows.find((x)=>x.id==el.dataset.editD)); }));
       box.querySelectorAll("[data-del-d]").forEach((el) => el.addEventListener("click", async (e) => { e.stopPropagation(); if(!confirm('Видалити страву?')) return; await api('dish_items?dish_id=eq.'+el.dataset.delD,{method:'DELETE'}); await api('dishes?id=eq.'+el.dataset.delD,{method:'DELETE'}); loadDishes(document.getElementById('dishSearch').value||''); toast('Видалено'); }));
@@ -505,7 +528,8 @@
       document.getElementById('dishName').value = d.name || '';
       state.editDishId = d.id;
       var dpf=document.getElementById("dishPhoto"); if(dpf) dpf.value="";
-      var dpv=document.getElementById("dishPhotoPreview"); if(dpv){ dpv.innerHTML=''; if(d.image_url){ dpv.style.display='block'; var img=document.createElement('img'); img.src=d.image_url+'?t='+Date.now(); img.style.width='100%'; img.style.height='100%'; img.style.objectFit='cover'; img.style.cursor='pointer'; img.setAttribute('data-photo', d.image_url); img.onerror=function(){ this.remove(); dpv.style.display='none'; }; dpv.appendChild(img); } else { dpv.style.display='none'; } }
+      var du=photoFor("dishes", d.id, d.image_url);
+      var dpv=document.getElementById("dishPhotoPreview"); if(dpv){ dpv.innerHTML=''; if(du){ dpv.style.display='block'; var img=document.createElement('img'); img.src=du+'?t='+Date.now(); img.style.width='100%'; img.style.height='100%'; img.style.objectFit='cover'; img.style.cursor='pointer'; img.setAttribute('data-photo', du); img.onerror=function(){ this.remove(); dpv.style.display='none'; }; dpv.appendChild(img); } else { dpv.style.display='none'; } }
       renderDishItems();
       var seg=document.getElementById('tabsSeg'); if(seg)seg.style.display='none';
       document.getElementById("tabNewDish").classList.add("active"); document.getElementById("tabProd").classList.remove("active"); document.getElementById("tabDish").classList.remove("active");
@@ -575,16 +599,18 @@
       const uid = Number(userId);
       let tg=0,tp=0,tf=0,tc=0,tt=0;
       state.dishItems.forEach((it)=>{ const g=it.grams||0; const c=Number(it.calories)||0,pr=Number(it.protein)||0,ft=Number(it.fat)||0,cb=Number(it.carbs)||0; tg+=(c*g/100); tp+=(pr*g/100); tf+=(ft*g/100); tc+=(cb*g/100); tt+=g; });
-      let img=null; const f=document.getElementById("dishPhoto").files[0]; if(f){ try{ img=await uploadPhoto(f); }catch(e){ toast("Помилка завантаження фото: " + (e.message||e)); } }
       const body={ user_id: uid, name, total_grams: tt, calories: tg, protein: tp, fat: tf, carbs: tc };
-      if(img) body.image_url = img;
-      let d;
+      const f = document.getElementById("dishPhoto").files[0];
+      let did = state.editDishId || null;
+      let img = null;
       try {
-        if(state.editDishId){ await apiSave('dishes?id=eq.'+state.editDishId,'PATCH',body); await api('dish_items?dish_id=eq.'+state.editDishId,{method:'DELETE'}); d={id:state.editDishId}; }
-        else { const dish = await apiSave("dishes", "POST", body); d = dish && dish[0]; }
-        await api("dish_items", { method:"POST", body: JSON.stringify(state.dishItems.map((it)=>({ dish_id: d.id, name: it.name, grams: it.grams, calories: (Number(it.calories)*it.grams)/100, protein: (Number(it.protein)*it.grams)/100, fat: (Number(it.fat)*it.grams)/100, carbs: (Number(it.carbs)*it.grams)/100 }))) });
+        if (did) { await api("dishes?id=eq." + did, { method: "PATCH", body: JSON.stringify(body) }); await api("dish_items?dish_id=eq." + did, { method: "DELETE" }); }
+        else { const dish = await api("dishes", { method: "POST", body: JSON.stringify(body) }); did = dish && dish[0] && dish[0].id; }
+        if (f && did) { try { img = await uploadPhoto(f, "dishes", did); } catch(e) { toast("Помилка завантаження фото: " + (e.message||e)); } }
+        if (img) await patchImageUrl("dishes", did, img);
+        await api("dish_items", { method:"POST", body: JSON.stringify(state.dishItems.map((it)=>({ dish_id: did, name: it.name, grams: it.grams, calories: (Number(it.calories)*it.grams)/100, protein: (Number(it.protein)*it.grams)/100, fat: (Number(it.fat)*it.grams)/100, carbs: (Number(it.carbs)*it.grams)/100 }))) });
       } catch(e) { toast("Помилка збереження: " + (e.message||e)); return; }
-      toast(lastSaveSkippedImage ? "Страву збережено без фото: у БД немає колонки image_url" : (state.editDishId?"Страву оновлено":"Страву збережено"));
+      toast(state.editDishId?"Страву оновлено":"Страву збережено");
       document.getElementById("dishName").value="";
       var dpf=document.getElementById("dishPhoto"); if(dpf) dpf.value=""; var dpv=document.getElementById("dishPhotoPreview"); if(dpv){ dpv.style.display='none'; dpv.innerHTML=''; }
       state.dishItems=[]; delete state.editDishId; renderDishItems();
@@ -651,14 +677,15 @@
       const uid = Number(userId);
       let img = null;
       const f = document.getElementById("npPhoto").files[0];
-      if(f){ try{ img = await uploadPhoto(f); }catch(e){ toast("Помилка завантаження фото: " + (e.message||e)); } }
       const body = { user_id: uid, name, calories: cal, protein: parseFloat(document.getElementById("npProtein").value.replace(",", "."))||0, fat: parseFloat(document.getElementById("npFat").value.replace(",", "."))||0, carbs: parseFloat(document.getElementById("npCarbs").value.replace(",", "."))||0, brand: state.barcode||null };
-      if(img) body.image_url = img;
+      let pid = state.editProductId || null;
       try {
-        if(state.editProductId){ await apiSave('products?id=eq.'+state.editProductId,'PATCH',body); }
-        else { await apiSave("products", "POST", body); }
+        if (pid) { await api("products?id=eq." + pid, { method: "PATCH", body: JSON.stringify(body) }); }
+        else { const rows = await api("products", { method: "POST", body: JSON.stringify(body) }); pid = rows && rows[0] && rows[0].id; }
+        if (f && pid) { try { img = await uploadPhoto(f, "products", pid); } catch(e) { toast("Помилка завантаження фото: " + (e.message||e)); } }
+        if (img) await patchImageUrl("products", pid, img);
       } catch(e) { toast("Помилка збереження: " + (e.message||e)); return; }
-      toast(lastSaveSkippedImage ? "Продукт збережено без фото: у БД немає колонки image_url" : (state.editProductId?"Продукт оновлено":"Продукт збережено")); state.barcode=null; delete state.editProductId; document.getElementById("npBarcode").textContent="";
+      toast(state.editProductId?"Продукт оновлено":"Продукт збережено"); state.barcode=null; delete state.editProductId; document.getElementById("npBarcode").textContent="";
       document.getElementById("npName").value=""; document.getElementById("npCal").value=""; document.getElementById("npProtein").value=""; document.getElementById("npFat").value=""; document.getElementById("npCarbs").value="";
       var npf=document.getElementById("npPhoto"); if(npf) npf.value=""; var pv=document.getElementById("npPhotoPreview"); if(pv){ pv.style.display='none'; pv.innerHTML=''; }
       var seg2=document.getElementById('tabsSeg'); if(seg2)seg2.style.display='flex';
