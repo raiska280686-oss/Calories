@@ -13,7 +13,7 @@ import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler
 
-from bot.auth import verify_init_data
+from bot.auth import verify_app_user_signature, verify_init_data
 from bot.config import (
     SUPABASE_KEY,
     SUPABASE_SERVICE_ROLE_KEY,
@@ -114,11 +114,22 @@ class handler(BaseHTTPRequestHandler):
             return
 
         verified = verify_init_data(payload.get("init_data", ""))
-        if not verified:
-            self._send(401, {"error": "invalid_init_data"})
-            return
+        if verified:
+            user_id = verified["user_id"]
+        else:
+            # Запасний шлях: підписаний ботом user_id із посилання на міні-апп
+            # (використовується, коли Telegram не передав initData).
+            auth = payload.get("auth") or {}
+            try:
+                signed_id = int(auth.get("user_id") or 0)
+            except (TypeError, ValueError):
+                signed_id = 0
+            signature = str(auth.get("sig") or "")
+            if not signed_id or not verify_app_user_signature(signed_id, signature):
+                self._send(401, {"error": "invalid_init_data"})
+                return
+            user_id = signed_id
 
-        user_id = verified["user_id"]
         op = payload.get("op", "")
         params = payload.get("params") or {}
         try:

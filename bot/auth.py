@@ -100,6 +100,31 @@ def telegram_uuid(telegram_id: int) -> str:
     return str(uuid.uuid5(TELEGRAM_UUID_NAMESPACE, f"telegram:{int(telegram_id)}"))
 
 
+def app_user_signature(user_id: int, bot_token: str = BOT_TOKEN) -> str:
+    """Підпис user_id для посилання на міні-апп.
+
+    Запасний спосіб авторизації: якщо Telegram не передав initData
+    (наприклад, міні-апп відкрито в браузері або кеш WebView), міні-апп
+    надсилає user_id + sig з посилання, яке згенерував бот.
+    """
+    if not bot_token or not user_id:
+        return ""
+    msg = f"app-user:{int(user_id)}".encode("utf-8")
+    return hmac.new(
+        bot_token.encode("utf-8"), msg, hashlib.sha256
+    ).hexdigest()[:32]
+
+
+def verify_app_user_signature(
+    user_id: int, signature: str, bot_token: str = BOT_TOKEN
+) -> bool:
+    """Перевіряє підпис user_id із посилання на міні-апп."""
+    if not user_id or not signature:
+        return False
+    expected = app_user_signature(user_id, bot_token)
+    return bool(expected) and hmac.compare_digest(expected, signature)
+
+
 def webhook_secret_token(bot_token: str = BOT_TOKEN) -> str:
     """Секретний токен для Telegram webhook.
 

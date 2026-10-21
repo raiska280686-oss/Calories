@@ -17,7 +17,8 @@ async def cmd_start(message: Message) -> None:
     if error:
         text = (
             "⚠️ Немає доступу до бази даних.\n"
-            "Перевір налаштування SUPABASE_JWT_SECRET і RLS-політики."
+            f"Причина: {error}\n"
+            "Перевір налаштування SUPABASE_SERVICE_ROLE_KEY та RLS-політики."
         )
     elif profile:
         text = (

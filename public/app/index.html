@@ -228,6 +228,7 @@
     const BASE = String(window.CALORIES_API_URL || location.origin).replace(/\/+$/, "");
     const DATA_URL = String(window.CALORIES_DATA_URL || (BASE + "/data")).replace(/\/+$/, "");
     let initData = "";
+    let fallbackAuth = null;
     let serverUserId = null;
     const MEALS = [
       { id: "breakfast", label: "Сніданок" },
@@ -249,14 +250,17 @@
       const res = await fetch(DATA_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ init_data: initData, op: op, params: params || {} }),
+        body: JSON.stringify({ init_data: initData, auth: fallbackAuth, op: op, params: params || {} }),
       });
       const text = await res.text();
       let payload = null;
       try { payload = JSON.parse(text); } catch (e) { payload = null; }
       if (!res.ok) {
         const raw = (payload && payload.error) || text || ("http_" + res.status);
-        if (res.status === 401) throw new Error("Немає доступу: відкрий міні-апп через Telegram");
+        if (res.status === 401) {
+          console.error("401 invalid_init_data", text);
+          throw new Error("Немає доступу: відкрий щоденник кнопкою «Відкрити щоденник» у чаті бота");
+        }
         throw new Error(String(raw).slice(0, 200));
       }
       if (payload && payload.user_id) {
@@ -759,10 +763,14 @@
 
     (async ()=>{
       initData = (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) || "";
+      const qs = new URLSearchParams(location.search);
+      const qsUser = qs.get("user_id");
+      const qsSig = qs.get("sig");
+      if (qsUser && /^\d+$/.test(qsUser) && qsSig) fallbackAuth = { user_id: Number(qsUser), sig: qsSig };
       const u = tg?.initDataUnsafe?.user;
       let uid = u?.id ? Number(u.id) : null;
       if (!uid || Number.isNaN(uid)) {
-        const q = new URLSearchParams(location.search).get("user_id");
+        const q = qs.get("user_id");
         if (q && q !== "null" && /^\d+$/.test(q)) uid = Number(q);
       }
       userId = (uid && Number.isInteger(uid)) ? uid : null;
