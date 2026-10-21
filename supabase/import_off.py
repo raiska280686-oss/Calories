@@ -77,6 +77,37 @@ def clean_name(raw) -> str:
     return " ".join(str(raw or "").split())[:200]
 
 
+def consistent(calories: float, protein: float, fat: float, carbs: float,
+               alcohol: float = 0.0) -> bool:
+    """Перевірка за Атуотером: ккал має бути близьким до 4·Б + 9·Ж + 4·В + 7·СПТ.
+
+    Ловить записи, де ккал вказано «на пачку/порцію», а не на 100 г.
+    """
+    atwater = 4 * protein + 9 * fat + 4 * carbs + 7 * alcohol
+    if calories <= 5 and atwater <= 5:
+        return True  # дієт-напої/вода з округленими нулями
+    if atwater <= 0:
+        return False
+    return 0.5 * atwater <= calories <= 2.0 * atwater
+
+
+def consistent_row(row: dict) -> bool:
+    """Мʼякша перевірка для вже завантажених рядків (без даних про спирт)."""
+    calories = float(row["calories"] or 0)
+    atwater = (
+        4 * float(row["protein"] or 0)
+        + 9 * float(row["fat"] or 0)
+        + 4 * float(row["carbs"] or 0)
+    )
+    if calories <= 5:
+        return True
+    if atwater <= 0:
+        return False
+    if calories > 300 and calories > 3 * atwater:
+        return False  # явно «не на 100 г»
+    return calories >= 0.25 * atwater
+
+
 def to_row(p: dict) -> dict | None:
     code = str(p.get("code") or "").strip()
     if not code.isdigit() or not (6 <= len(code) <= 14):
@@ -100,13 +131,20 @@ def to_row(p: dict) -> dict | None:
     if kcal is None or not (0 < kcal <= MAX_KCAL):
         return None
 
+    protein = round(max(0.0, num("proteins_100g") or 0.0), 1)
+    fat = round(max(0.0, num("fat_100g") or 0.0), 1)
+    carbs = round(max(0.0, num("carbohydrates_100g") or 0.0), 1)
+    alcohol = round(max(0.0, num("alcohol_100g") or 0.0), 1)
+    if not consistent(kcal, protein, fat, carbs, alcohol):
+        return None
+
     return {
         "user_id": None,
         "name": name,
         "calories": round(kcal, 1),
-        "protein": round(max(0.0, num("proteins_100g") or 0.0), 1),
-        "fat": round(max(0.0, num("fat_100g") or 0.0), 1),
-        "carbs": round(max(0.0, num("carbohydrates_100g") or 0.0), 1),
+        "protein": protein,
+        "fat": fat,
+        "carbs": carbs,
         "brand": code,
     }
 
@@ -131,6 +169,36 @@ def fetch_products(country: str, pages: int, sleep: float, sort: str = "", start
         time.sleep(sleep)
 
 
+def recheck_global(dry_run: bool = False) -> int:
+    """Видаляє глобальні продукти з непослідовною калорійністю (ккал vs Б/Ж/В)."""
+    rows, offset = [], 0
+    while True:
+        page = _supabase(
+            "GET",
+            f"products?user_id=is.null&select=id,name,calories,protein,fat,carbs"
+            f"&limit=1000&offset={offset}",
+        ) or []
+        rows.extend(page)
+        if len(page) < 1000:
+            break
+        offset += 1000
+
+    bad = [r for r in rows if not consistent_row(r)]
+    print(f"Перевірено глобальних продуктів: {len(rows)}, непослідовних: {len(bad)}")
+    for r in bad[:8]:
+        print(
+            f"  · {r['name']} — {r['calories']} ккал, "
+            f"Б/Ж/В {r['protein']}/{r['fat']}/{r['carbs']}"
+        )
+    if dry_run:
+        return len(bad)
+    for i in range(0, len(bad), 500):
+        chunk = ",".join(str(r["id"]) for r in bad[i:i + 500])
+        _supabase("DELETE", f"products?id=in.({chunk})&user_id=is.null")
+        print(f"  видалено {min(500, len(bad) - i)}")
+    return len(bad)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Імпорт продуктів з Open Food Facts")
     ap.add_argument("--limit", type=int, default=2000, help="скільки продуктів додати")
@@ -141,11 +209,17 @@ def main() -> int:
     ap.add_argument("--sort", default="", help="сортування OFF (напр. popularity_key; зараз 503)")
     ap.add_argument("--batch", type=int, default=200, help="розмір пакета в Supabase")
     ap.add_argument("--dry-run", action="store_true", help="не писати в БД, лише показати")
+    ap.add_argument("--recheck", action="store_true",
+                    help="перевірити наявні глобальні продукти й видалити непослідовні")
     args = ap.parse_args()
 
     if not SUPABASE_SERVICE_ROLE_KEY:
         print("Немає SUPABASE_SERVICE_ROLE_KEY")
         return 1
+
+    if args.recheck:
+        recheck_global(args.dry_run)
+        return 0
 
     print(f"Наявні штрихкоди в БД...", end=" ", flush=True)
     known = existing_codes()
