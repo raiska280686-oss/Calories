@@ -225,10 +225,10 @@
 
   <script>
     const API = "https://mtwqibjdfcuxqmbigksf.supabase.co";
-    const KEY = "sb_publishable_V3Jv0gycxZ3oEEu-bWYrMg_SE_ERS7m";
-    const AUTH_URL = String(window.CALORIES_AUTH_URL || (location.origin + "/auth")).replace(/\/+$/, "");
-    let authToken = "";
-    let authUserId = null;
+    const BASE = String(window.CALORIES_API_URL || location.origin).replace(/\/+$/, "");
+    const DATA_URL = String(window.CALORIES_DATA_URL || (BASE + "/data")).replace(/\/+$/, "");
+    let initData = "";
+    let serverUserId = null;
     const MEALS = [
       { id: "breakfast", label: "Сніданок" },
       { id: "lunch", label: "Обід" },
@@ -243,133 +243,105 @@
     const tg = window.Telegram?.WebApp;
     if (tg) { tg.ready(); tg.expand(); }
 
-    function supabaseHeaders(extra) {
-      return Object.assign({
-        apikey: KEY,
-        Authorization: "Bearer " + (authToken || KEY),
-        "Content-Type": "application/json",
-      }, extra || {});
-    }
-
-    async function initAuth() {
-      const initData = (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) || "";
-      if (!initData) return null;
-      const res = await fetch(AUTH_URL, {
+    // Усі дані йдуть через серверний проксі /data: ключі Supabase не потрапляють у браузер,
+    // а сервер сам перевіряє підпис Telegram initData і підставляє правильний user_id.
+    async function rpc(op, params) {
+      const res = await fetch(DATA_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ init_data: initData }),
+        body: JSON.stringify({ init_data: initData, op: op, params: params || {} }),
       });
-      if (!res.ok) throw new Error("auth_http_" + res.status);
-      const data = await res.json();
-      if (!data || !data.token) throw new Error("auth_failed");
-      authToken = data.token;
-      authUserId = data.user_id || null;
-      return data;
-    }
-
-    async function api(path, opts = {}) {
-      const headers = Object.assign(supabaseHeaders(), {
-        Prefer: opts.prefer || "return=representation",
-      }, opts.headers || {});
-      const res = await fetch(API + "/rest/v1/" + path, Object.assign({}, opts, { headers }));
-      if (res.status === 401 && authToken && !opts.retried) {
-        try { await initAuth(); } catch (e) { /* пробуємо ще раз нижче */ }
-        if (authToken) return api(path, Object.assign({}, opts, { retried: true }));
-      }
-      if (!res.ok) throw new Error((await res.text()).slice(0, 300));
       const text = await res.text();
-      return text ? JSON.parse(text) : null;
+      let payload = null;
+      try { payload = JSON.parse(text); } catch (e) { payload = null; }
+      if (!res.ok) {
+        const raw = (payload && payload.error) || text || ("http_" + res.status);
+        if (res.status === 401) throw new Error("Немає доступу: відкрий міні-апп через Telegram");
+        throw new Error(String(raw).slice(0, 200));
+      }
+      if (payload && payload.user_id) {
+        serverUserId = Number(payload.user_id);
+        if (!userId) userId = serverUserId;
+      }
+      return payload && "data" in payload ? payload.data : null;
     }
 
     // Фото лежать у bucket photos під префіксом власника: u<telegram_id>/<kind>-<id>.jpg
-    // (RLS у Supabase дозволяє бачити/завантажувати лише власні об'єкти)
     const PHOTO_KIND = { products: "product", dishes: "dish" };
     let photoMap = new Map();
-    let imageUrlSupported = null;
 
-    function photoName(kind, id) { return "u" + userId + "/" + PHOTO_KIND[kind] + "-" + id + ".jpg"; }
+    function ownerId() { return serverUserId || userId; }
+    function photoName(kind, id) { return "u" + ownerId() + "/" + PHOTO_KIND[kind] + "-" + id + ".jpg"; }
     function photoPublicUrl(name) { return API + "/storage/v1/object/public/photos/" + name; }
 
-    async function signPhotos(names) {
-      if (!names || !names.length || !authToken) return null;
-      try {
-        const res = await fetch(API + "/storage/v1/object/sign/photos", {
-          method: "POST",
-          headers: supabaseHeaders(),
-          body: JSON.stringify({ paths: names, expiresIn: 3600 }),
-        });
-        if (!res.ok) return null;
-        const rows = await res.json();
-        if (!Array.isArray(rows)) return null;
-        const map = new Map();
-        rows.forEach((r) => {
-          if (!r || r.error || !r.path) return;
-          const url = r.signedUrl || (r.signedURL ? API + "/storage/v1" + r.signedURL : "");
-          if (url) map.set(r.path, url);
-        });
-        return map.size ? map : null;
-      } catch (e) { return null; }
-    }
-
     async function loadPhotoKeys() {
-      if (!userId) return;
-      const prefix = "u" + userId + "/";
+      if (!ownerId()) return;
       try {
-        const res = await fetch(API + "/storage/v1/object/list/photos", {
-          method: "POST",
-          headers: supabaseHeaders(),
-          body: JSON.stringify({ prefix: prefix, limit: 1000 }),
-        });
-        if (!res.ok) return;
-        const rows = await res.json();
-        const names = (rows || [])
-          .map((o) => o && o.name)
-          .filter(Boolean)
-          .map((n) => (n.indexOf(prefix) === 0 ? n : prefix + n));
+        const names = await rpc("photos_list");
         const map = new Map();
-        names.forEach((n) => map.set(n, photoPublicUrl(n)));
-        const signed = await signPhotos(names);
-        if (signed) signed.forEach((url, name) => map.set(name, url));
+        (names || []).forEach((n) => map.set(n, photoPublicUrl(n)));
         photoMap = map;
       } catch (e) { /* bucket недоступний — просто без фото */ }
     }
 
     function photoFor(kind, id, imageUrl) {
       if (imageUrl) return imageUrl;
-      return photoMap.get(photoName(kind, id)) || "";
+      const direct = photoMap.get(photoName(kind, id));
+      if (direct) return direct;
+      const suffix = "/" + PHOTO_KIND[kind] + "-" + id + ".jpg";
+      for (const [name, url] of photoMap) {
+        if (name.endsWith(suffix)) return url;
+      }
+      return "";
     }
 
     async function uploadPhoto(file, kind, id) {
-      if (!file || !id || !userId) return null;
-      const name = photoName(kind, id);
-      const res = await fetch(API + "/storage/v1/object/photos/" + name, {
-        method: "POST",
-        headers: supabaseHeaders({
-          "Content-Type": file.type || "image/jpeg",
-          "x-upsert": "true",
-        }),
-        body: file,
+      if (!file || !id) return null;
+      const prepared = await shrinkImage(file);
+      const res = await rpc("photos_upload", {
+        kind: kind, id: id, mime: prepared.type || "image/jpeg", content: prepared.content,
       });
-      if (res.ok) {
-        const signed = await signPhotos([name]);
-        const url = (signed && signed.get(name)) || photoPublicUrl(name);
-        photoMap.set(name, url);
-        return url;
-      }
-      const t = await res.text(); throw new Error((t || "upload failed").slice(0, 200));
+      if (!res || !res.url) throw new Error("upload failed");
+      photoMap.set(res.name, res.url);
+      return res.url;
     }
 
-    async function patchImageUrl(table, id, url) {
-      if (imageUrlSupported === false) return false;
-      try {
-        await api(table + "?id=eq." + id, { method: "PATCH", body: JSON.stringify({ image_url: url }) });
-        imageUrlSupported = true;
-        return true;
-      } catch (e) {
-        const msg = String((e && e.message) || e);
-        if (/image_url|42703|PGRST204/i.test(msg)) { imageUrlSupported = false; return false; }
-        throw e;
-      }
+    // Фото з камери можуть бути кілька МБ — зменшуємо, щоб вміститися в ліміт запиту.
+    function shrinkImage(file) {
+      const MAX = 1280;
+      return new Promise((resolve) => {
+        const read = new FileReader();
+        read.onerror = () => resolve({ type: file.type || "image/jpeg", content: toBase64(file) });
+        read.onload = () => {
+          const img = new Image();
+          img.onerror = () => resolve({ type: file.type || "image/jpeg", content: toBase64(file) });
+          img.onload = () => {
+            try {
+              const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+              const w = Math.max(1, Math.round(img.width * scale));
+              const h = Math.max(1, Math.round(img.height * scale));
+              const canvas = document.createElement("canvas");
+              canvas.width = w; canvas.height = h;
+              canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+              const dataUrl = canvas.toDataURL("image/jpeg", 0.82);
+              resolve({ type: "image/jpeg", content: dataUrl.split(",")[1] });
+            } catch (e) {
+              resolve({ type: file.type || "image/jpeg", content: toBase64(file) });
+            }
+          };
+          img.src = read.result;
+        };
+        read.readAsDataURL(file);
+      });
+    }
+
+    function toBase64(file) {
+      return new Promise((resolve, reject) => {
+        const read = new FileReader();
+        read.onerror = reject;
+        read.onload = () => resolve(String(read.result).split(",")[1] || "");
+        read.readAsDataURL(file);
+      });
     }
 
     const iso = (d) => d.toISOString().slice(0, 10);
@@ -397,16 +369,16 @@
     }
 
     async function loadProfile() {
-      const rows = await api(`profiles?user_id=eq.${userId}&select=tdee`);
-      norm = rows.length ? rows[0].tdee : null;
+      const res = await rpc("profile_get");
+      norm = res && res.tdee != null ? Number(res.tdee) : null;
       document.getElementById("norm").textContent = norm ? `Норма: ${r0(norm)} ккал` : "Норма: —";
     }
 
     async function loadDay() {
       document.getElementById("dateLabel").textContent = day.toLocaleDateString("uk-UA", { day: "numeric", month: "long", weekday: "short" });
       await loadPhotoKeys();
-      const entries = await api(`diary_entries?user_id=eq.${userId}&entry_date=eq.${iso(day)}&select=*&order=created_at.asc`);
-      render(entries);
+      const entries = await rpc("day_get", { date: iso(day) });
+      render(entries || []);
     }
 
     function render(entries) {
@@ -455,7 +427,7 @@
     }
 
     async function deleteEntry(id) {
-      await api(`diary_entries?id=eq.${id}`, { method: "DELETE" });
+      await rpc("entry_delete", { id: id });
       loadDay();
       toast("Видалено");
     }
@@ -504,17 +476,13 @@
 
     // Продукти
     async function loadProducts(q) {
-      const uid = Number(userId);
-      const query = q.trim()
-        ? `products?or=(user_id.is.null,user_id.eq.${uid})&name=ilike.*${encodeURIComponent(q.trim())}*&select=*&limit=60`
-        : `products?or=(user_id.is.null,user_id.eq.${uid})&select=*&limit=60&order=name.asc`;
-      const rows = await api(query);
+      const rows = await rpc("products_list", { q: q || "" }) || [];
       await loadPhotoKeys();
       const box = document.getElementById("results");
       box.innerHTML = rows.map((p) => `<div class="result" data-id="${p.id}"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div style="display:flex;align-items:center;gap:10px;min-width:0">${thumb(photoFor("products", p.id, p.image_url))}<div style="min-width:0"><div>${esc(p.name)}</div><small>${r0(p.calories)} ккал · Б${p.protein} Ж${p.fat} В${p.carbs} /100 г</small></div></div><div style="display:flex;gap:8px"><button data-edit-p="${p.id}" style="border:none;background:none;color:var(--text)">✎</button><button data-del-p="${p.id}" style="border:none;background:none;color:#e35">✕</button></div></div></div>`).join("") || `<div class="close">Нічого не знайдено</div>`;
       box.querySelectorAll("[data-id]").forEach((el) => el.addEventListener("click", (e) => { if(e.target.closest('[data-edit-p]')||e.target.closest('[data-del-p]')||e.target.closest('[data-photo]')) return; pickProduct(rows.find((p) => p.id == el.dataset.id)); }));
       box.querySelectorAll("[data-edit-p]").forEach((el) => el.addEventListener("click", (e) => { e.stopPropagation(); editProduct(rows.find((p)=>p.id==el.dataset.editP)); }));
-      box.querySelectorAll("[data-del-p]").forEach((el) => el.addEventListener("click", async (e) => { e.stopPropagation(); if(!confirm('Видалити продукт?')) return; await api('products?id=eq.'+el.dataset.delP,{method:'DELETE'}); loadProducts(document.getElementById('search').value||''); toast('Видалено'); }));
+      box.querySelectorAll("[data-del-p]").forEach((el) => el.addEventListener("click", async (e) => { e.stopPropagation(); if(!confirm('Видалити продукт?')) return; await rpc('product_delete', {id: el.dataset.delP}); loadProducts(document.getElementById('search').value||''); toast('Видалено'); }));
     }
     function editProduct(p){
       state.barcode = p.brand || null;
@@ -554,31 +522,26 @@
       const p = state.product;
       const g = parseFloat(document.getElementById("grams").value.replace(",", "."));
       if (!p || !(g > 0)) return toast("Вкажи грами");
-      const uid = Number(userId);
-      await api("diary_entries", { method: "POST", body: JSON.stringify({
-        user_id: uid, entry_date: iso(day), meal: state.meal,
-        product_id: p.id, name: p.name, grams: g,
+      await rpc("entry_add", {
+        date: iso(day), meal: state.meal, product_id: p.id, name: p.name, grams: g,
         calories: (Number(p.calories)*g)/100, protein: (Number(p.protein)*g)/100,
         fat: (Number(p.fat)*g)/100, carbs: (Number(p.carbs)*g)/100,
-      })});
+      });
       closeSheet(); loadDay(); toast("Додано");
     }
 
     // Страви
     async function loadDishes(q="") {
-      const uid = Number(userId);
-      let path = `dishes?or=(user_id.is.null,user_id.eq.${uid})&select=*&limit=60&order=created_at.desc`;
-      if (q.trim()) path = `dishes?or=(user_id.is.null,user_id.eq.${uid})&name=ilike.*${encodeURIComponent(q.trim())}*&select=*&limit=60`;
-      const rows = await api(path);
+      const rows = await rpc("dishes_list", { q: q || "" }) || [];
       await loadPhotoKeys();
       const box = document.getElementById("dishResults");
       box.innerHTML = rows.map((d) => `<div class="result" data-did="${d.id}"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div style="display:flex;align-items:center;gap:10px;min-width:0">${thumb(photoFor("dishes", d.id, d.image_url))}<div style="min-width:0"><div>${esc(d.name)}</div><small>${r0(d.calories)} ккал на ${r0(d.total_grams)} г · Б${f1(d.protein)} Ж${f1(d.fat)} В${f1(d.carbs)}</small></div></div><div style="display:flex;gap:8px"><button data-edit-d="${d.id}" style="border:none;background:none;color:var(--text)">✎</button><button data-del-d="${d.id}" style="border:none;background:none;color:#e35">✕</button></div></div></div>`).join("") || `<div class="close">Немає страв</div>`;
       box.querySelectorAll("[data-did]").forEach((el) => el.addEventListener("click", (e) => { if(e.target.closest('[data-edit-d]')||e.target.closest('[data-del-d]')||e.target.closest('[data-photo]')) return; pickDish(rows.find((x) => x.id == el.dataset.did)); }));
       box.querySelectorAll("[data-edit-d]").forEach((el) => el.addEventListener("click", async (e) => { e.stopPropagation(); await editDish(rows.find((x)=>x.id==el.dataset.editD)); }));
-      box.querySelectorAll("[data-del-d]").forEach((el) => el.addEventListener("click", async (e) => { e.stopPropagation(); if(!confirm('Видалити страву?')) return; await api('dish_items?dish_id=eq.'+el.dataset.delD,{method:'DELETE'}); await api('dishes?id=eq.'+el.dataset.delD,{method:'DELETE'}); loadDishes(document.getElementById('dishSearch').value||''); toast('Видалено'); }));
+      box.querySelectorAll("[data-del-d]").forEach((el) => el.addEventListener("click", async (e) => { e.stopPropagation(); if(!confirm('Видалити страву?')) return; await rpc('dish_delete', {id: el.dataset.delD}); loadDishes(document.getElementById('dishSearch').value||''); toast('Видалено'); }));
     }
     async function editDish(d){
-      const items = await api('dish_items?dish_id=eq.'+d.id+'&select=*');
+      const items = await rpc('dish_items_get', {id: d.id}) || [];
       state.dishItems = (items||[]).map(it=>({ product_id: it.product_id||null, name: it.name, grams: it.grams, calories: (Number(it.calories)/(Number(it.grams)||1))*100, protein: (Number(it.protein)/(Number(it.grams)||1))*100, fat: (Number(it.fat)/(Number(it.grams)||1))*100, carbs: (Number(it.carbs)/(Number(it.grams)||1))*100 }));
       document.getElementById('dishName').value = d.name || '';
       state.editDishId = d.id;
@@ -611,14 +574,12 @@
       const d = state.dishPortion;
       const g = parseFloat(document.getElementById("dishPortionGrams").value.replace(",", "."));
       if (!d || !(g > 0)) return toast("Вкажи грами");
-      const uid = Number(userId);
       const ratio = g / (Number(d.total_grams) || 1);
-      await api("diary_entries", { method: "POST", body: JSON.stringify({
-        user_id: uid, entry_date: iso(day), meal: state.meal,
-        product_id: null, name: d.name + " (страва)", grams: g,
+      await rpc("entry_add", {
+        date: iso(day), meal: state.meal, product_id: null, name: d.name + " (страва)", grams: g,
         calories: (Number(d.calories)*ratio), protein: (Number(d.protein)*ratio),
         fat: (Number(d.fat)*ratio), carbs: (Number(d.carbs)*ratio),
-      })});
+      });
       closeSheet(); loadDay(); toast("Додано");
     }
 
@@ -651,19 +612,20 @@
       const name = document.getElementById("dishName").value.trim();
       if (!name) return toast("Вкажи назву страви");
       if (state.dishItems.length < 1) return toast("Додай інгредієнти");
-      const uid = Number(userId);
       let tg=0,tp=0,tf=0,tc=0,tt=0;
       state.dishItems.forEach((it)=>{ const g=it.grams||0; const c=Number(it.calories)||0,pr=Number(it.protein)||0,ft=Number(it.fat)||0,cb=Number(it.carbs)||0; tg+=(c*g/100); tp+=(pr*g/100); tf+=(ft*g/100); tc+=(cb*g/100); tt+=g; });
-      const body={ user_id: uid, name, total_grams: tt, calories: tg, protein: tp, fat: tf, carbs: tc };
+      const body = { name, total_grams: tt, calories: tg, protein: tp, fat: tf, carbs: tc };
+      const items = state.dishItems.map((it) => ({
+        name: it.name, grams: it.grams,
+        calories: (Number(it.calories)*it.grams)/100, protein: (Number(it.protein)*it.grams)/100,
+        fat: (Number(it.fat)*it.grams)/100, carbs: (Number(it.carbs)*it.grams)/100,
+      }));
       const f = document.getElementById("dishPhoto").files[0];
       let did = state.editDishId || null;
-      let img = null;
       try {
-        if (did) { await api("dishes?id=eq." + did, { method: "PATCH", body: JSON.stringify(body) }); await api("dish_items?dish_id=eq." + did, { method: "DELETE" }); }
-        else { const dish = await api("dishes", { method: "POST", body: JSON.stringify(body) }); did = dish && dish[0] && dish[0].id; }
-        if (f && did) { try { img = await uploadPhoto(f, "dishes", did); } catch(e) { toast("Помилка завантаження фото: " + (e.message||e)); } }
-        if (img) await patchImageUrl("dishes", did, img);
-        await api("dish_items", { method:"POST", body: JSON.stringify(state.dishItems.map((it)=>({ dish_id: did, name: it.name, grams: it.grams, calories: (Number(it.calories)*it.grams)/100, protein: (Number(it.protein)*it.grams)/100, fat: (Number(it.fat)*it.grams)/100, carbs: (Number(it.carbs)*it.grams)/100 }))) });
+        const saved = await rpc("dish_save", Object.assign({ id: did }, body, { items: items }));
+        did = (saved && saved.id) || did;
+        if (f && did) { try { await uploadPhoto(f, "dishes", did); } catch(e) { toast("Помилка завантаження фото: " + (e.message||e)); } }
       } catch(e) { toast("Помилка збереження: " + (e.message||e)); return; }
       toast(state.editDishId?"Страву оновлено":"Страву збережено");
       document.getElementById("dishName").value="";
@@ -709,36 +671,31 @@
 
     async function onBarcode(code) {
       toast("Шукаю продукт...");
-      if (!userId) return toast("Немає user_id");
       try {
-        const uid = Number(userId);
-        const found = await lookupBarcode(code);
-        const existing = await api(`products?user_id=eq.${uid}&brand=eq.${encodeURIComponent(code)}&select=*&limit=1`);
-        if (existing.length) { showView("viewProduct"); pickProduct(existing[0]); toast(existing[0].name); return; }
-        if (!found) {
-          document.getElementById("npName").value=""; document.getElementById("npCal").value=""; document.getElementById("npProtein").value=""; document.getElementById("npFat").value=""; document.getElementById("npCarbs").value="";
-          state.barcode = code; document.getElementById("npBarcode").textContent = "Штрихкод: " + code;
-          setTab("prod"); showView("newProductForm"); toast("Немає в базі — внеси вручну"); return;
-        }
-        const rows = await api("products", { method:"POST", body: JSON.stringify({ user_id: uid, name: found.name, calories: found.calories||0, protein: found.protein||0, fat: found.fat||0, carbs: found.carbs||0, brand: code })});
-        const product = rows[0]; setTab("prod"); showView("viewProduct"); pickProduct(product); toast(found.name);
-      } catch(e) { toast("Помилка: " + e.message); }
+      const found = await lookupBarcode(code);
+      const existing = await rpc("product_by_barcode", { code: code });
+      if (existing) { showView("viewProduct"); pickProduct(existing); toast(existing.name); return; }
+      if (!found) {
+        document.getElementById("npName").value=""; document.getElementById("npCal").value=""; document.getElementById("npProtein").value=""; document.getElementById("npFat").value=""; document.getElementById("npCarbs").value="";
+        state.barcode = code; document.getElementById("npBarcode").textContent = "Штрихкод: " + code;
+        setTab("prod"); showView("newProductForm"); toast("Немає в базі — внеси вручну"); return;
+      }
+      const product = await rpc("product_save", { name: found.name, calories: found.calories||0, protein: found.protein||0, fat: found.fat||0, carbs: found.carbs||0, brand: code });
+      setTab("prod"); showView("viewProduct"); pickProduct(product); toast(found.name);
+    } catch(e) { toast("Помилка: " + e.message); }
     }
 
     async function saveProduct() {
       const name = document.getElementById("npName").value.trim();
       const cal = parseFloat(document.getElementById("npCal").value.replace(",", "."));
       if (!name || !(cal>=0)) return toast("Заповни назву і калорії");
-      const uid = Number(userId);
-      let img = null;
-      const f = document.getElementById("npPhoto").files[0];
-      const body = { user_id: uid, name, calories: cal, protein: parseFloat(document.getElementById("npProtein").value.replace(",", "."))||0, fat: parseFloat(document.getElementById("npFat").value.replace(",", "."))||0, carbs: parseFloat(document.getElementById("npCarbs").value.replace(",", "."))||0, brand: state.barcode||null };
+      const body = { name, calories: cal, protein: parseFloat(document.getElementById("npProtein").value.replace(",", "."))||0, fat: parseFloat(document.getElementById("npFat").value.replace(",", "."))||0, carbs: parseFloat(document.getElementById("npCarbs").value.replace(",", "."))||0, brand: state.barcode||null };
       let pid = state.editProductId || null;
       try {
-        if (pid) { await api("products?id=eq." + pid, { method: "PATCH", body: JSON.stringify(body) }); }
-        else { const rows = await api("products", { method: "POST", body: JSON.stringify(body) }); pid = rows && rows[0] && rows[0].id; }
-        if (f && pid) { try { img = await uploadPhoto(f, "products", pid); } catch(e) { toast("Помилка завантаження фото: " + (e.message||e)); } }
-        if (img) await patchImageUrl("products", pid, img);
+        const saved = await rpc("product_save", Object.assign({ id: pid }, body));
+        pid = (saved && saved.id) || pid;
+        const f = document.getElementById("npPhoto").files[0];
+        if (f && pid) { try { await uploadPhoto(f, "products", pid); } catch(e) { toast("Помилка завантаження фото: " + (e.message||e)); } }
       } catch(e) { toast("Помилка збереження: " + (e.message||e)); return; }
       toast(state.editProductId?"Продукт оновлено":"Продукт збережено"); state.barcode=null; delete state.editProductId; document.getElementById("npBarcode").textContent="";
       document.getElementById("npName").value=""; document.getElementById("npCal").value=""; document.getElementById("npProtein").value=""; document.getElementById("npFat").value=""; document.getElementById("npCarbs").value="";
@@ -795,26 +752,22 @@
     let timer1,timer2,timer3;
     document.getElementById("search").addEventListener("input", (e)=>{ clearTimeout(timer1); timer1=setTimeout(()=>loadProducts(e.target.value),250); });
     document.getElementById("dishSearch").addEventListener("input", (e)=>{ clearTimeout(timer2); timer2=setTimeout(()=>loadDishes(e.target.value),250); });
-    document.getElementById("dishIngSearch").addEventListener("input", (e)=>{ clearTimeout(timer3); timer3=setTimeout(async()=>{ const uid=Number(userId); const q=e.target.value.trim(); const path=q?`products?or=(user_id.is.null,user_id.eq.${uid})&name=ilike.*${encodeURIComponent(q)}*&select=*&limit=20`:`products?or=(user_id.is.null,user_id.eq.${uid})&select=*&limit=20&order=name.asc`; const rows=await api(path); const box=document.getElementById("dishIngResults"); box.innerHTML=rows.map((p)=>`<div class="result" data-pid="${p.id}"><div>${p.name}</div><small>${r0(p.calories)} ккал /100 г</small></div>`).join("")||`<div class="close">Немає</div>`; box.querySelectorAll("[data-pid]").forEach((el)=>el.addEventListener("click",()=>{ const p=rows.find(x=>x.id==el.dataset.pid); addDishIng(p); document.getElementById("dishIngSearch").value=""; box.innerHTML=""; })); },250); });
+    document.getElementById("dishIngSearch").addEventListener("input", (e)=>{ clearTimeout(timer3); timer3=setTimeout(async()=>{ const q=e.target.value.trim(); const rows=(await rpc("products_list", { q: q })) || []; const box=document.getElementById("dishIngResults"); box.innerHTML=rows.map((p)=>`<div class="result" data-pid="${p.id}"><div>${p.name}</div><small>${r0(p.calories)} ккал /100 г</small></div>`).join("")||`<div class="close">Немає</div>`; box.querySelectorAll("[data-pid]").forEach((el)=>el.addEventListener("click",()=>{ const p=rows.find(x=>x.id==el.dataset.pid); addDishIng(p); document.getElementById("dishIngSearch").value=""; box.innerHTML=""; })); },250); });
     document.getElementById("prevDay").addEventListener("click", ()=>{ day.setDate(day.getDate()-1); loadDay(); });
     document.getElementById("nextDay").addEventListener("click", ()=>{ day.setDate(day.getDate()+1); loadDay(); });
     document.getElementById("todayBtn").addEventListener("click", ()=>{ day=new Date(); loadDay(); });
 
     (async ()=>{
-      try {
-        const auth = await initAuth();
-        if (auth && auth.rls_ok === false) toast("Немає доступу до бази");
-      }
-      catch(e){ console.error("auth error", e); toast("Помилка авторизації"); }
+      initData = (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) || "";
       const u = tg?.initDataUnsafe?.user;
-      let uid = authUserId || (u?.id ? Number(u.id) : null);
+      let uid = u?.id ? Number(u.id) : null;
       if (!uid || Number.isNaN(uid)) {
         const q = new URLSearchParams(location.search).get("user_id");
         if (q && q !== "null" && /^\d+$/.test(q)) uid = Number(q);
       }
       userId = (uid && Number.isInteger(uid)) ? uid : null;
-      if (!userId) { toast("Відкрий через Telegram-бота"); return; }
-      try { await loadProfile(); await loadDay(); } catch(e){ console.error(e); toast("Помилка завантаження"); }
+      try { await loadProfile(); await loadDay(); }
+      catch(e){ console.error(e); toast("Помилка завантаження: " + ((e && e.message) || e)); }
     })();
   </script>
 </body>

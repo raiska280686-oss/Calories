@@ -1,13 +1,23 @@
 import json
+import urllib.error
 import urllib.request
 from typing import Optional
 
 from bot.auth import make_jwt
-from bot.config import SUPABASE_KEY, SUPABASE_URL
+from bot.config import SUPABASE_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL
+
+_last_error: Optional[str] = None
+
+
+def get_last_error() -> Optional[str]:
+    """Остання помилка доступу до Supabase (None — все добре)."""
+    return _last_error
 
 
 def _auth_token(user_id: Optional[int]) -> str:
-    """JWT користувача (RLS бачить telegram_id) або publishable key як запасний варіант."""
+    """JWT користувача (RLS бачить telegram_id), service_role для бота або publishable key."""
+    if SUPABASE_SERVICE_ROLE_KEY:
+        return SUPABASE_SERVICE_ROLE_KEY
     if user_id is not None:
         try:
             return make_jwt(user_id)
@@ -23,11 +33,14 @@ def _request(
     prefer: str = "",
     user_id: Optional[int] = None,
 ) -> Optional[list]:
-    if not SUPABASE_URL or not SUPABASE_KEY:
+    global _last_error
+    _last_error = None
+    if not SUPABASE_URL or not (SUPABASE_SERVICE_ROLE_KEY or SUPABASE_KEY):
+        _last_error = "Не налаштовано SUPABASE_URL/SUPABASE_KEY"
         return None
     url = f"{SUPABASE_URL}/rest/v1/{path}"
     headers = {
-        "apikey": SUPABASE_KEY,
+        "apikey": SUPABASE_SERVICE_ROLE_KEY or SUPABASE_KEY,
         "Authorization": f"Bearer {_auth_token(user_id)}",
         "Content-Type": "application/json",
     }
@@ -38,13 +51,23 @@ def _request(
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
             raw = resp.read().decode()
-    except Exception:
+    except urllib.error.HTTPError as err:
+        detail = ""
+        try:
+            detail = err.read().decode()[:200]
+        except Exception:
+            pass
+        _last_error = f"HTTP {err.code}: {detail}"
+        return None
+    except Exception as err:
+        _last_error = str(err)[:200]
         return None
     if not raw:
         return []
     try:
         parsed = json.loads(raw)
     except ValueError:
+        _last_error = "Некоректна відповідь Supabase"
         return []
     return parsed if isinstance(parsed, list) else [parsed]
 
