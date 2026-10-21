@@ -90,6 +90,12 @@
       background: rgba(128,128,128,.15); cursor: pointer;
     }
     .thumb-sm { width: 34px; height: 34px; border-radius: 9px; flex: 0 0 34px; }
+    .thumb.letter {
+      display: flex; align-items: center; justify-content: center; object-fit: unset;
+      color: #fff; font-weight: 700; font-size: 17px; cursor: default;
+      text-transform: uppercase; user-select: none;
+    }
+    .thumb-sm.letter { font-size: 13px; }
     .lightbox {
       position: fixed; inset: 0; background: rgba(0,0,0,.9); display: none;
       align-items: center; justify-content: center; z-index: 50; padding: 16px;
@@ -290,7 +296,7 @@
     }
 
     function photoFor(kind, id, imageUrl) {
-      if (imageUrl) return imageUrl;
+      if (imageUrl && /^https?:\/\//i.test(String(imageUrl))) return imageUrl;
       const direct = photoMap.get(photoName(kind, id));
       if (direct) return direct;
       const suffix = "/" + PHOTO_KIND[kind] + "-" + id + ".jpg";
@@ -355,9 +361,17 @@
 
     const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-    function thumb(url, small) {
-      if (!url) return "";
+    function thumb(url, small, name) {
+      if (!url) return name ? letterThumb(name, small) : "";
       return `<img class="thumb${small ? " thumb-sm" : ""}" src="${esc(url)}" alt="" loading="lazy" data-photo="${esc(url)}" onerror="this.remove()" />`;
+    }
+
+    function letterThumb(name, small) {
+      const text = String(name || "").trim();
+      const letter = (text[0] || "?").toUpperCase();
+      let h = 0;
+      for (const ch of text) h = (h * 31 + ch.charCodeAt(0)) % 360;
+      return `<div class="thumb${small ? " thumb-sm" : ""} letter" style="background:hsl(${h} 40% 42%)">${esc(letter)}</div>`;
     }
 
     function openPhoto(url) {
@@ -414,7 +428,7 @@
           ${list.map((e) => `
             <div class="entry">
               <div style="display:flex;align-items:center;gap:10px;min-width:0">
-                ${thumb(e.product_id ? photoFor("products", e.product_id) : "", true)}
+                ${thumb(e.product_id ? photoFor("products", e.product_id) : "", true, e.name)}
                 <div style="min-width:0">
                   <div>${esc(e.name)}</div>
                   <div class="muted">${r0(e.grams)} г · Б${f1(e.protein)} Ж${f1(e.fat)} В${f1(e.carbs)}</div>
@@ -484,7 +498,7 @@
       const rows = await rpc("products_list", { q: q || "" }) || [];
       await loadPhotoKeys();
       const box = document.getElementById("results");
-      box.innerHTML = rows.map((p) => `<div class="result" data-id="${p.id}"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div style="display:flex;align-items:center;gap:10px;min-width:0">${thumb(photoFor("products", p.id, p.image_url))}<div style="min-width:0"><div>${esc(p.name)}</div><small>${r0(p.calories)} ккал · Б${p.protein} Ж${p.fat} В${p.carbs} /100 г</small></div></div><div style="display:flex;gap:8px"><button data-edit-p="${p.id}" style="border:none;background:none;color:var(--text)">✎</button><button data-del-p="${p.id}" style="border:none;background:none;color:#e35">✕</button></div></div></div>`).join("") || `<div class="close">Нічого не знайдено</div>`;
+      box.innerHTML = rows.map((p) => `<div class="result" data-id="${p.id}"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div style="display:flex;align-items:center;gap:10px;min-width:0">${thumb(photoFor("products", p.id, p.image_url), false, p.name)}<div style="min-width:0"><div>${esc(p.name)}</div><small>${r0(p.calories)} ккал · Б${p.protein} Ж${p.fat} В${p.carbs} /100 г</small></div></div><div style="display:flex;gap:8px"><button data-edit-p="${p.id}" style="border:none;background:none;color:var(--text)">✎</button><button data-del-p="${p.id}" style="border:none;background:none;color:#e35">✕</button></div></div></div>`).join("") || `<div class="close">Нічого не знайдено</div>`;
       box.querySelectorAll("[data-id]").forEach((el) => el.addEventListener("click", (e) => { if(e.target.closest('[data-edit-p]')||e.target.closest('[data-del-p]')||e.target.closest('[data-photo]')) return; pickProduct(rows.find((p) => p.id == el.dataset.id)); }));
       box.querySelectorAll("[data-edit-p]").forEach((el) => el.addEventListener("click", (e) => { e.stopPropagation(); editProduct(rows.find((p)=>p.id==el.dataset.editP)); }));
       box.querySelectorAll("[data-del-p]").forEach((el) => el.addEventListener("click", async (e) => { e.stopPropagation(); if(!confirm('Видалити продукт?')) return; await rpc('product_delete', {id: el.dataset.delP}); loadProducts(document.getElementById('search').value||''); toast('Видалено'); }));
@@ -540,7 +554,7 @@
       const rows = await rpc("dishes_list", { q: q || "" }) || [];
       await loadPhotoKeys();
       const box = document.getElementById("dishResults");
-      box.innerHTML = rows.map((d) => `<div class="result" data-did="${d.id}"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div style="display:flex;align-items:center;gap:10px;min-width:0">${thumb(photoFor("dishes", d.id, d.image_url))}<div style="min-width:0"><div>${esc(d.name)}</div><small>${r0(d.calories)} ккал на ${r0(d.total_grams)} г · Б${f1(d.protein)} Ж${f1(d.fat)} В${f1(d.carbs)}</small></div></div><div style="display:flex;gap:8px"><button data-edit-d="${d.id}" style="border:none;background:none;color:var(--text)">✎</button><button data-del-d="${d.id}" style="border:none;background:none;color:#e35">✕</button></div></div></div>`).join("") || `<div class="close">Немає страв</div>`;
+      box.innerHTML = rows.map((d) => `<div class="result" data-did="${d.id}"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div style="display:flex;align-items:center;gap:10px;min-width:0">${thumb(photoFor("dishes", d.id, d.image_url), false, d.name)}<div style="min-width:0"><div>${esc(d.name)}</div><small>${r0(d.calories)} ккал на ${r0(d.total_grams)} г · Б${f1(d.protein)} Ж${f1(d.fat)} В${f1(d.carbs)}</small></div></div><div style="display:flex;gap:8px"><button data-edit-d="${d.id}" style="border:none;background:none;color:var(--text)">✎</button><button data-del-d="${d.id}" style="border:none;background:none;color:#e35">✕</button></div></div></div>`).join("") || `<div class="close">Немає страв</div>`;
       box.querySelectorAll("[data-did]").forEach((el) => el.addEventListener("click", (e) => { if(e.target.closest('[data-edit-d]')||e.target.closest('[data-del-d]')||e.target.closest('[data-photo]')) return; pickDish(rows.find((x) => x.id == el.dataset.did)); }));
       box.querySelectorAll("[data-edit-d]").forEach((el) => el.addEventListener("click", async (e) => { e.stopPropagation(); await editDish(rows.find((x)=>x.id==el.dataset.editD)); }));
       box.querySelectorAll("[data-del-d]").forEach((el) => el.addEventListener("click", async (e) => { e.stopPropagation(); if(!confirm('Видалити страву?')) return; await rpc('dish_delete', {id: el.dataset.delD}); loadDishes(document.getElementById('dishSearch').value||''); toast('Видалено'); }));
