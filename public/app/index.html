@@ -536,10 +536,14 @@
           pap.style.display = "block";
           const img = document.createElement("img");
           img.src = pu;
+          img.setAttribute("data-photo", pu);
           img.style.width = "100%";
           img.style.height = "160px";
-          img.style.objectFit = "cover";
+          img.style.objectFit = "contain";
+          img.style.background = "rgba(0,0,0,.25)";
           img.style.borderRadius = "12px";
+          img.style.cursor = "zoom-in";
+          img.onclick = function(e){ e.stopPropagation(); openPhoto(pu); };
           img.onerror = function () { pap.style.display = "none"; };
           pap.appendChild(img);
         } else {
@@ -607,10 +611,14 @@
           dpp.style.display = "block";
           const img = document.createElement("img");
           img.src = du;
+          img.setAttribute("data-photo", du);
           img.style.width = "100%";
           img.style.height = "160px";
-          img.style.objectFit = "cover";
+          img.style.objectFit = "contain";
+          img.style.background = "rgba(0,0,0,.25)";
           img.style.borderRadius = "12px";
+          img.style.cursor = "zoom-in";
+          img.onclick = function(e){ e.stopPropagation(); openPhoto(du); };
           img.onerror = function () { dpp.style.display = "none"; };
           dpp.appendChild(img);
         } else {
