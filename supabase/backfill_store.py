@@ -89,7 +89,7 @@ ENG2UKR = {
     "peach": "персик", "apricot": "абрикос", "melon": "диня", "watermelon": "кавун",
     "pineapple": "ананас", "lemon": "лимон", "kiwi": "ківі", "mango": "манго",
     "avocado": "авокадо", "coconut": "кокос", "raisin": "родзинки", "fig": "інжир",
-    "almond": "мигдаль", "peanut": "арахіс", "walnut": "горіх", "nut": "горіх",
+    "almond": "мигдаль", "peanut": "арахіс", "walnut": "горіх", "nut": "горіх", "bulgur": "булгур", "nectarine": "нектарин",
     "honey": "мед", "sugar": "цукор", "salt": "сіль", "flour": "борошно",
     "oat": "вівсянка", "oats": "вівсянка", "wheat": "пшениця", "rye": "жито",
     "buckwheat": "гречка", "barley": "ячмінь", "millet": "пшоно", "semolina": "манка",
@@ -160,8 +160,24 @@ def attempt_queries(name: str) -> list[str]:
     return out
 
 
-def plausible_title(title: str) -> bool:
-    return not (JUNK_FILE.search(title) or BAD_FILE.search(title) or STORE_JUNK.search(title))
+COFFEE_BAD = re.compile(r"latte|капучин|мокк|ice\b|фрап|десерт|кекс|торт", re.I)
+COND_BAD = re.compile(r"кекс|торт|бісквіт|пиріг|мафін|cupcake|cake\b|десерт", re.I)
+
+
+def plausible_title(title: str, query: str = "") -> bool:
+    if JUNK_FILE.search(title) or BAD_FILE.search(title) or STORE_JUNK.search(title):
+        return False
+    ql = query.lower()
+    tl = title.lower()
+    if "кава" in ql and "без цукру" in ql:
+        if COFFEE_BAD.search(tl):
+            return False
+        if "кава" in tl and not re.search(r"\b(мелена|зерн|в зернах)\b", tl) and "натуральна" not in tl:
+            return False
+    if "згущен" in ql:
+        if COND_BAD.search(tl):
+            return False
+    return True
 
 
 def name_score(query: str, title: str) -> tuple[float, float]:
@@ -341,7 +357,45 @@ def main() -> int:
                     help="all | wiki (лише з Вікіпедії) | blank (лише без фото)")
     ap.add_argument("--min-score", type=float, default=0.60)
     ap.add_argument("--min-cover", type=float, default=0.5)
+    ap.add_argument("--fix-names", nargs="*")
     args = ap.parse_args()
+
+    if args.fix_names:
+        for name in args.fix_names:
+            row = _supabase("GET", f"products?user_id=is.null&name=eq.{urllib.parse.quote(name)}&select=id,name,image_url&limit=1")
+            if not row:
+                print(name, "NOT FOUND"); continue
+            row = row[0]
+            best = None
+            queries = []
+            nl = name.lower()
+            if "кава" in nl and "без цукру" in nl:
+                queries = ["кава мелена", "кава зернова", "кава"]
+            queries += attempt_queries(name)
+            for attempt in dict.fromkeys(queries):
+                try: found = search_products(attempt)
+                except: continue
+                for title, img in found:
+                    if not plausible_title(title, attempt): continue
+                    sc,c = name_score(name, title)
+                    if c < 0.6 or sc < 0.58: continue
+                    if best is None or sc > best[0]: best = (sc,title,img)
+                if best and best[0]>=0.85: break
+                time.sleep(0.8)
+            if not best:
+                off = off_pick(name)
+                if off: best = off
+            if not best:
+                print(name, "NO MATCH"); continue
+            print(f"  {name} -> {best[1][:70]} [{best[0]:.2f}]")
+            if args.dry_run: continue
+            fetched = fetch_image(best[2])
+            if not fetched: print("  fail"); continue
+            raw,ctype = fetched
+            public = upload_photo(row["id"], raw, ctype)
+            _supabase("PATCH", f"products?id=eq.{row['id']}&user_id=is.null", body={"image_url":public}, headers={"Prefer":"return=minimal"})
+            print("  OK")
+        return 0
 
     only_blank = args.only_blank or args.source == "blank"
     rows = load_rows(only_blank)
