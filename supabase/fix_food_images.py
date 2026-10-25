@@ -33,12 +33,13 @@ from import_off import _supabase  # noqa: E402
 
 BAD_UK = re.compile(
     r"вид рослин|вид квіткових|рослин[аи] род|рід рослин|рослина|кущ|трав'янист|"
-    r"рід птахів|вид птахів|рід тварин|горобцеподібн",
+    r"рід птахів|вид птахів|рід тварин|горобцеподібн|птах|свійськ|курин|птиц",
     re.I,
 )
 BAD_EN = re.compile(
     r"\bspecies of (plant|bird|flowering|trees)\b|\bflowering plant\b|\bgenus\b|"
-    r"\bcultivar\b|\bshrub\b|\bplant\b|\bbird\b|\btree\b|\bherb\b|\baquatic plant\b",
+    r"\bcultivar\b|\bshrub\b|\bplant\b|\bbird\b|\btree\b|\bherb\b|\baquatic plant\b|"
+    r"\bfowls?\b|\bpoultry\b|\bdomestic fowl\b",
     re.I,
 )
 BAD_FILE = re.compile(
@@ -55,7 +56,16 @@ JUNK_FILE = re.compile(
     r"dialectstat|statistic|histogram|\bdiagram\b|\bchart\b|\bgraph\b|"
     r"palace|castle|cathedral|church|monument|statue|museum|temple|"
     r"\broute\b|\bhighway\b|\bstreet\b|\broad\b|\bbuilding\b|facade|interior|aerial|panorama|"
-    r"brew|\bpub\b|\bcafe\b|\brestaurant\b|plaque|\bsign\b|streetview|coordinate",
+    r"brew|\bpub\b|\bcafe\b|\brestaurant\b|plaque|\bsign\b|streetview|coordinate|"
+    r"chicks?\b|\bhens?\b|\brooster\b|\bflock\b|\bcoop\b|free.?range|farmyard|"
+    r"neocaridina|caridina|aquarium|aquascap|"
+    r"\bDJ\b|by glenn francis|\bportrait\b|\bmural\b|poster|"
+
+    r"gallopavo|meleagris|\bgallus\b|hypoga|bos taurus|sus scrofa|"
+    r"histolog|physiolog|\banatom|\bembryo\b|inspection|abattoir|slaughter|carcass|"
+    r"newborn|nimitz|\bsailor\b|\bnavy\b|aircraft|\bvine\b|\borchard\b|"
+    r"cookbook|kokebok|kochbuch|housekeeper|almanac|\bin turkey\b|\bof turkey\b|"
+    r"квочк|курочк|куриц[яі]|індик\b",
     re.I,
 )
 
@@ -66,6 +76,7 @@ POSITIVE = re.compile(
     r"\bporridge\b|\bboiled\b|\bfried\b|\bcooked\b|\bmashed\b|\broast|\bstew\b|"
     r"\bbread\b|\bcake\b|\bdish\b|\bmeal\b|\bserving\b|\bplate\b|\bfresh\b|\bdried\b|"
     r"\bfruit\b|\bvegetable\b|\bberry\b|\bmeat\b|\bfillet\b|\bsteak\b|cross section|"
+    r"currant|johannisbeer|ribes|\bberr|"""
     r"\bhalved\b|\bsliced\b|\bpotato|\brice\b|\bcorn\b|\bmaize\b|\bbean\b|\bonion\b|"
     r"\bapple\b|\borange\b|\btomato\b|\bcheese\b|\bmilk\b|\bbutter\b|\byogurt\b|"
     r"\byoghurt\b|\bchicken\b|\bbeef\b|\bpork\b|\bcarrot\b|\bcabbage\b|\bnoodle\b|"
@@ -78,6 +89,7 @@ POSITIVE = re.compile(
     r"ketchup|mustard|mayonnaise|\bsauce\b|\bdessert\b|bacon|sausage|\bham\b|salami|"
     r"cracker|granola|\bcereal\b|muesli|oatmeal|pancake|waffle|omelette|omelet|"
     r"custard|pudding|mousse|burrito|dumpling|ravioli|gnocchi|croissant|baguette|"
+    r"\bturkey\b|\blamb\b|\bveal\b|buckwheat|\blentil\b|chickpea|"
     r"варен|смаж",
     re.I,
 )

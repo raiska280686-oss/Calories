@@ -187,6 +187,7 @@
       </div>
 
       <div id="pickAmount" style="display:none">
+        <div id="amountPhoto" style="width:100%;height:160px;border-radius:12px;overflow:hidden;background:rgba(255,255,255,.04);display:none;margin-bottom:10px"></div>
         <div id="amountName" style="font-weight:600;margin-bottom:4px"></div>
         <small id="amountHint" style="color:var(--hint)"></small>
         <input id="grams" type="number" inputmode="decimal" placeholder="Грами" style="margin-top:10px" />
@@ -196,6 +197,7 @@
       </div>
 
       <div id="pickDishPortion" style="display:none">
+        <div id="dishPortionPhoto" style="width:100%;height:160px;border-radius:12px;overflow:hidden;background:rgba(255,255,255,.04);display:none;margin-bottom:10px"></div>
         <div id="dishPortionName" style="font-weight:600;margin-bottom:4px"></div>
         <small id="dishPortionHint" style="color:var(--hint)"></small>
         <input id="dishPortionGrams" type="number" inputmode="decimal" placeholder="Грами порції (напр. 250)" style="margin-top:10px" />
@@ -526,6 +528,24 @@
       document.getElementById("amountHint").textContent = `${r0(p.calories)} ккал / 100 г · Б${p.protein} Ж${p.fat} В${p.carbs}`;
       document.getElementById("grams").value = 100;
       updatePreview();
+      const pu = photoFor("products", p.id, p.image_url);
+      const pap = document.getElementById("amountPhoto");
+      if (pap) {
+        pap.innerHTML = "";
+        if (pu) {
+          pap.style.display = "block";
+          const img = document.createElement("img");
+          img.src = pu;
+          img.style.width = "100%";
+          img.style.height = "160px";
+          img.style.objectFit = "cover";
+          img.style.borderRadius = "12px";
+          img.onerror = function () { pap.style.display = "none"; };
+          pap.appendChild(img);
+        } else {
+          pap.style.display = "none";
+        }
+      }
       showView("pickAmount");
     }
 
@@ -579,6 +599,24 @@
       document.getElementById("dishPortionHint").textContent = `Всього ${r0(d.total_grams)} г · ${r0(d.calories)} ккал · Б${f1(d.protein)} Ж${f1(d.fat)} В${f1(d.carbs)}`;
       document.getElementById("dishPortionGrams").value = Math.min(250, Math.max(50, d.total_grams));
       updateDishPortion();
+      const du = photoFor("dishes", d.id, d.image_url);
+      const dpp = document.getElementById("dishPortionPhoto");
+      if (dpp) {
+        dpp.innerHTML = "";
+        if (du) {
+          dpp.style.display = "block";
+          const img = document.createElement("img");
+          img.src = du;
+          img.style.width = "100%";
+          img.style.height = "160px";
+          img.style.objectFit = "cover";
+          img.style.borderRadius = "12px";
+          img.onerror = function () { dpp.style.display = "none"; };
+          dpp.appendChild(img);
+        } else {
+          dpp.style.display = "none";
+        }
+      }
       showView("pickDishPortion");
     }
 
