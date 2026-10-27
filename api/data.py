@@ -186,14 +186,24 @@ class handler(BaseHTTPRequestHandler):
                     imgs[pr["id"]] = pr.get("image_url") or ""
             except Exception:
                 pass
+        try:
+            ds = _supabase("GET", f"dishes?or=(user_id.is.null,user_id.eq.{user_id})&select=name,image_url") or []
+            dish_imgs = {d.get("name"): d.get("image_url") or "" for d in ds}
+        except Exception:
+            dish_imgs = {}
         dids = set()
         for r in rows:
             nm = r.get("name") or ""
             if nm.endswith(" (страва)"):
                 pass
         for r in rows:
-            if r.get("product_id") and not r.get("image_url"):
-                r["image_url"] = imgs.get(r["product_id"], "")
+            if r.get("product_id"):
+                if not r.get("image_url"):
+                    r["image_url"] = imgs.get(r["product_id"], "")
+            else:
+                nm = (r.get("name") or "").replace(" (страва)", "")
+                if not r.get("image_url") and nm in dish_imgs:
+                    r["image_url"] = dish_imgs.get(nm, "")
         return rows
 
     def _op_entry_add(self, user_id: int, p: dict):
