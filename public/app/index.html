@@ -430,7 +430,7 @@
           ${list.map((e) => `
             <div class="entry">
               <div style="display:flex;align-items:center;gap:10px;min-width:0">
-                ${thumb(e.product_id ? photoFor("products", e.product_id, e.image_url || "") : "", true, e.name)}
+                ${thumb(e.image_url || (e.product_id ? photoFor("products", e.product_id) : ""), true, e.name)}
                 <div style="min-width:0">
                   <div>${esc(e.name)}</div>
                   <div class="muted">${r0(e.grams)} г · Б${f1(e.protein)} Ж${f1(e.fat)} В${f1(e.carbs)}</div>

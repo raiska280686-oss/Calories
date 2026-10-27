@@ -169,11 +169,32 @@ class handler(BaseHTTPRequestHandler):
 
     def _op_day_get(self, user_id: int, p: dict):
         day = str(p.get("date", ""))[:10]
-        return _supabase(
+        rows = _supabase(
             "GET",
             f"diary_entries?user_id=eq.{user_id}&entry_date=eq.{day}"
             "&select=*&order=created_at.asc",
-        )
+        ) or []
+        pids = {r.get("product_id") for r in rows if r.get("product_id")}
+        imgs = {}
+        if pids:
+            try:
+                ps = _supabase(
+                    "GET",
+                    "products?id=in.(" + ",".join(str(x) for x in pids) + ")&select=id,image_url",
+                ) or []
+                for pr in ps:
+                    imgs[pr["id"]] = pr.get("image_url") or ""
+            except Exception:
+                pass
+        dids = set()
+        for r in rows:
+            nm = r.get("name") or ""
+            if nm.endswith(" (страва)"):
+                pass
+        for r in rows:
+            if r.get("product_id") and not r.get("image_url"):
+                r["image_url"] = imgs.get(r["product_id"], "")
+        return rows
 
     def _op_entry_add(self, user_id: int, p: dict):
         meal = str(p.get("meal", ""))
